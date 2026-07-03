@@ -1,0 +1,17 @@
+{
+  "name": "@hunt/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt domain core: canonical models, schemas, and pure domain logic. No I/O, no SDKs.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  }
+}
