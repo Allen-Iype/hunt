@@ -4,6 +4,8 @@ import type { Id } from "./models/common.js";
 import type { RawEnvelope } from "./models/envelope.js";
 import type { ExtractedJobDraft } from "./models/extracted-job.js";
 import type { Job } from "./models/job.js";
+import type { JobAnalysis } from "./models/job-analysis.js";
+import type { JobInsights } from "./models/job-insights.js";
 import type { Profile } from "./models/profile.js";
 
 /**
@@ -97,6 +99,32 @@ export interface ExtractJobPort {
 export type ExtractJobResult =
   | { ok: true; draft: ExtractedJobDraft }
   | { ok: false; kind: "unavailable" | "provider" | "invalid-output"; message: string };
+
+/**
+ * Domain-shaped AI port for the analysis pass B (SDD §18, ADR-0013):
+ * classify requirements, infer seniority, surface red flags, narrate gaps.
+ * Match results are provided so the narrative is grounded in pass A's facts.
+ */
+export interface JobInsightsPort {
+  getJobInsights(input: {
+    title: string;
+    descriptionText: string;
+    matchedSkills: readonly string[];
+    missingSkills: readonly string[];
+  }): Promise<JobInsightsResult>;
+}
+
+export type JobInsightsResult =
+  | { ok: true; insights: JobInsights }
+  | { ok: false; kind: "unavailable" | "provider" | "invalid-output"; message: string };
+
+export interface JobAnalysisRepository {
+  /** Insert or replace by id (deterministic id → re-analysis refreshes). */
+  save(analysis: JobAnalysis): void;
+  getById(id: Id): JobAnalysis | null;
+  getLatestForJob(jobId: Id): JobAnalysis | null;
+  listForJob(jobId: Id): JobAnalysis[];
+}
 
 /**
  * Content-addressed store for verbatim raw payloads (SDD §8, §12).

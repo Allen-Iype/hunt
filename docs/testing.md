@@ -20,7 +20,8 @@ pnpm build         # tsc across packages
 | Capability tests (fake repositories; staged error assertions) | ✅ active | `packages/capabilities/src/*.test.ts` |
 | Adapter fixture tests (committed pages: JSON-LD shapes, DOM-only, auth wall, plain text) | ✅ active | `packages/ingestion/src/testing/fixtures/`; a broken source is fixed by adding a new fixture + updating the normalizer |
 | AI gateway tests (validation, repair retry, cache, replay-miss) + provider wire-format tests (stubbed fetch) | ✅ active | `packages/ai/src/*.test.ts`; CI never calls a real provider |
-| AI record/replay | ✅ infra active | the response cache *is* the replay store (decisions #11); live-recorded fixtures + eval set pending a real API key |
+| AI record/replay | ✅ infra active | the response cache *is* the replay store (decisions #11); live-recorded fixtures + behavioral eval set pending a real API key |
+| Prompt locks (prompt edits require task-version bumps) | ✅ active | `packages/ai/src/tasks/prompt-locks.test.ts` + committed `prompt-locks.json` (decisions #13) |
 | Full-AI-path E2E (real gateway + Ollama adapter against a local fake HTTP server) | ✅ active | `packages/cli/src/run.test.ts` |
 | E2E smoke (full V1 flow via CLI) | ⬜ grows with each milestone; complete flow mandatory before v0.1 | import legs active; analyze/generate/track legs arrive M3–M5 |
 | **No-AI suite** (non-AI surface with no provider configured) | ✅ active | structured/DOM import succeed with no provider; AI-needing paths fail fast with config guidance — must always stay green (SDD Principle 2) |

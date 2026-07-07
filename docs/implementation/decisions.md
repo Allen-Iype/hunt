@@ -96,3 +96,20 @@ Deviations from, or refinements of, the SDD made during implementation. Architec
 - **Reason**: it is ~15 lines reusing the entire pipeline, and it makes the M2 exit criterion (multiple sites) real for URL input, not just paste. Scope addition consciously logged rather than silently slipped in.
 - **Alternatives considered**: LinkedIn-only URL support (rejects Greenhouse/Lever URLs users will paste on day one for no technical reason).
 - **Affected SDD section**: §9, §26.
+
+## 13. Prompt locks as the offline form of "eval fixtures locked"
+
+- **Date**: 2026-07-07
+- **Decision**: Every AI task's instructions are SHA-256-locked in `packages/ai/src/tasks/prompt-locks.json`; a test fails when a prompt changes without a task-version bump. The *behavioral* eval set (real inputs → expected outputs against a live model) remains a maintainer action requiring an API key.
+- **Reason**: CI is offline by design (SDD §20); the enforceable invariant offline is "prompt changes are versioned and deliberate", which is what flows into artifact provenance. Behavioral regression needs live calls.
+- **Impact**: prompt edits force a conscious version bump → cache keys change → stale cached responses can't masquerade as the new prompt's output.
+- **Affected SDD section**: §15, §20.
+
+## 14. Candidate seniority derived from experience span
+
+- **Date**: 2026-07-07
+- **Decision**: The scoring input "candidate seniority" is derived deterministically from the profile's total experience span (<2y junior, <5 mid, <9 senior, <13 staff, else principal); management-track job levels score neutral.
+- **Reason**: the SDD's scoring function (§18 D) needs a candidate level, but Profile intentionally has no self-declared seniority field (facts, not self-assessment). Years-of-experience is crude but deterministic, explainable, and stable.
+- **Alternatives considered**: a self-declared profile field (invites inflation, another thing to maintain); AI inference (violates ADR-0007's determinism for score inputs that code can compute).
+- **Impact**: revisit if calibration analytics (§19) show the neutral/management handling skews scores.
+- **Affected SDD section**: §11, §18.

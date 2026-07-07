@@ -1,6 +1,11 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createGetProfile, createImportJob, createImportProfile } from "@hunt/capabilities";
+import {
+  createAnalyzeJob,
+  createGetProfile,
+  createImportJob,
+  createImportProfile,
+} from "@hunt/capabilities";
 import { createJobIngestor } from "@hunt/ingestion";
 import { openStorage, type HuntStorage } from "@hunt/storage";
 import { buildAiSetup } from "./ai-config.js";
@@ -21,6 +26,7 @@ export interface Container {
   importProfile: ReturnType<typeof createImportProfile>;
   getProfile: ReturnType<typeof createGetProfile>;
   importJob: ReturnType<typeof createImportJob>;
+  analyzeJob: ReturnType<typeof createAnalyzeJob>;
   aiConfigError?: string;
   close(): void;
 }
@@ -41,6 +47,12 @@ export function createContainer(
     importProfile: createImportProfile({ profiles: storage.profiles }),
     getProfile: createGetProfile({ profiles: storage.profiles }),
     importJob: createImportJob({ ingestor, jobs: storage.jobs, companies: storage.companies }),
+    analyzeJob: createAnalyzeJob({
+      jobs: storage.jobs,
+      profiles: storage.profiles,
+      analyses: storage.analyses,
+      insights: ai.insights,
+    }),
     ...("configError" in ai && ai.configError ? { aiConfigError: ai.configError } : {}),
     close: () => storage.close(),
   };

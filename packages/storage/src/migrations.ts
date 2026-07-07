@@ -75,4 +75,17 @@ export const MIGRATIONS: readonly string[] = [
     source_meta     TEXT
   );
   `,
+  // 3 — job analyses (SDD §12, §18): derived, versioned artifacts.
+  `
+  CREATE TABLE job_analyses (
+    id               TEXT PRIMARY KEY,
+    job_id           TEXT NOT NULL REFERENCES jobs(id),
+    profile_version  TEXT NOT NULL,
+    analyzer_version INTEGER NOT NULL,
+    fit_score        INTEGER NOT NULL,
+    data             TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+  );
+  CREATE INDEX idx_job_analyses_job ON job_analyses(job_id, created_at DESC);
+  `,
 ];

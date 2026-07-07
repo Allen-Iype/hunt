@@ -132,6 +132,70 @@ describe("hunt import (integration: no AI configured)", () => {
   });
 });
 
+describe("hunt analyze (integration: deterministic, no AI)", () => {
+  const cleanEnv = () => {
+    for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {
+      delete process.env[key];
+    }
+  };
+
+  async function importedJobId(huntHome: string): Promise<string> {
+    const imported = await run(["import", "--file", fixture("greenhouse.html")], { huntHome });
+    expect(imported.exitCode).toBe(0);
+    return /job id: (job_[0-9a-f]+)/.exec(imported.output)![1]!;
+  }
+
+  it("analyzes an imported job against the profile (M3 exit criterion)", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const jobId = await importedJobId(huntHome);
+
+    const result = await run(["analyze", jobId], { huntHome });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toMatch(/Fit \d+\/100 — Senior Backend Engineer @ Initech/);
+    // The Greenhouse fixture demands Go/Kubernetes; the example profile lacks them.
+    expect(result.output).toContain("Missing skills:");
+    expect(result.output).toContain("kubernetes");
+    expect(result.output).toContain("Seniority:");
+    expect(result.output).toContain("Compensation: 85000–105000 EUR per year");
+    expect(result.output).toContain("deterministic");
+    expect(result.output).toContain("no AI provider configured");
+  });
+
+  it("re-analysis is stable: same score, same analysis id", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const jobId = await importedJobId(huntHome);
+
+    const first = await run(["analyze", jobId], { huntHome });
+    const second = await run(["analyze", jobId], { huntHome });
+    const scoreOf = (out: string) => /Fit (\d+)\/100/.exec(out)![1];
+    const idOf = (out: string) => /Analysis id: (ana_[0-9a-f]+)/.exec(out)![1];
+    expect(scoreOf(second.output)).toBe(scoreOf(first.output));
+    expect(idOf(second.output)).toBe(idOf(first.output));
+  });
+
+  it("fails helpfully for an unknown job id", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const result = await run(["analyze", "job_nope"], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("job not found");
+  });
+
+  it("fails helpfully when no profile exists", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    const jobId = await importedJobId(huntHome);
+    const result = await run(["analyze", jobId], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("hunt profile import");
+  });
+});
+
 describe("hunt import (full AI path through a local fake Ollama)", () => {
   function fakeOllama(responseJson: string): Promise<{ url: string; server: Server }> {
     const server = createServer((req, res) => {

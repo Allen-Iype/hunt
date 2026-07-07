@@ -7,7 +7,7 @@
 | M0 — Skeleton | ✅ |
 | M1 — Models & storage | ✅ |
 | M2 — Ingestion | ✅ |
-| M3 — Analysis | ⬜ |
+| M3 — Analysis | ✅ |
 | M4 — Generation | ⬜ |
 | M5 — Tracking & release | ⬜ |
 
@@ -15,9 +15,9 @@
 
 ## Current Milestone
 
-**M2 — Ingestion** · Status: **complete, awaiting approval** · Completion: 100%
+**M3 — Analysis** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: envelope pipeline, paste + LinkedIn adapters, tiered normalization with the first AI-gateway use, dedup, fixtures.
+Objective: skill dictionary, deterministic matching, AI requirement classification, merge with provenance, deterministic fit scoring, `hunt analyze`.
 
 ---
 
@@ -27,32 +27,33 @@ Objective: envelope pipeline, paste + LinkedIn adapters, tiered normalization wi
 |------|------|-------|
 | 2026-07-03 | M0: scaffold, dependency rule, draft schemas, CI, docs, ADRs 0001–0010 | |
 | 2026-07-05 | M1: finalized models, state machine, SQLite storage, vault, profile import, ADR-0011 | |
-| 2026-07-07 | Core: RawEnvelope model, ExtractedJobDraft schema (extraction contract), dedup fingerprint, ports: EnvelopeRepository, ExtractJobPort (ADR-0013), JobIngestor | |
-| 2026-07-07 | `@hunt/ai`: gateway (schema validation, bounded repair retry, content-keyed cache, replay mode), Anthropic + Ollama providers via raw HTTP (ADR-0012), extract-job task | Cache doubles as record/replay store (decisions #11) |
-| 2026-07-07 | `@hunt/ingestion`: two-phase pipeline (envelope persisted before normalization), JSON-LD tier (incl. @graph, TELECOMMUTE, salary, dates), LinkedIn adapter (auth-wall detection + DOM tier), paste + generic-URL adapters, static registry, deterministic canonical assembly (job id from dedup hash) | |
-| 2026-07-07 | Storage migration 2: `raw_envelopes` + repository | First real use of the migration/backup path |
-| 2026-07-07 | `ImportJob` capability: ingest → dedup (re-import updates provenance) → company resolution (clears M1 debt) → persist | |
-| 2026-07-07 | CLI: `hunt import <url> | --file | -` (async runner), env-var AI config (decisions #10) | |
-| 2026-07-07 | Tests 95 → 153: gateway behaviors, provider wire formats (stubbed fetch), fixture pages ×6, pipeline tiers, dedup, no-AI paths, full AI path through a real local HTTP server posing as Ollama | |
+| 2026-07-07 | M2: envelope pipeline, tiered normalization, AI gateway, providers, ImportJob, `hunt import`, ADR-0012/0013 | |
+| 2026-07-07 | Core: skill dictionary v1 (~55 canonical skills + aliases, pure data), token-based detection (no substring false positives), profile↔job matching with two-sided canonicalization | SDD §18 pass A |
+| 2026-07-07 | Core: `parseCompensation` (ranges, k-suffix, currencies, periods; 401(k) noise guard), `computeFitScore` (weighted, renormalizing; ADR-0007), candidate seniority from experience span (decisions #14), `JobAnalysis` + `JobInsights` models, `JobInsightsPort` + `JobAnalysisRepository` ports | SDD §18 pass D |
+| 2026-07-07 | `@hunt/ai`: job-insights task v1 (grounding rules; no score emission); prompt-lock test infra (decisions #13) | SDD §18 pass B |
+| 2026-07-07 | Storage migration 3 (`job_analyses`) + repository | |
+| 2026-07-07 | `AnalyzeJob` capability: A → optional B → merge C (import-stated seniority beats AI; import requirements beat AI classification; skills always deterministic) → D; deterministic analysis id → re-analysis refreshes | SDD §18 pass C |
+| 2026-07-07 | CLI `hunt analyze <job-id>` with breakdown, per-requirement coverage, provenance markers | |
+| 2026-07-07 | Tests 153 → 198; one real bug found and fixed by tests: "401k" parsed as salary | |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M2 delivered, stopped per milestone workflow.
+Nothing in flight — M3 delivered, stopped per milestone workflow.
 
 ---
 
 ## Next Steps
 
-On approval, begin **M3 — Analysis**:
-1. Skill dictionary (versioned data file) + deterministic profile↔job matching.
-2. `JobAnalysis` model + storage.
-3. AI requirement-classification task (second domain-shaped port), merge with per-field provenance.
-4. Deterministic fit scoring (ADR-0007).
-5. `hunt analyze <job-id>`; lock eval fixtures for prompt changes.
+On approval, begin **M4 — Generation** (the signature milestone, SDD §17):
+1. `ResumeDocument`/`CoverLetterDocument` models with fact-ID-cited bullets.
+2. Deterministic fact selection (relevance ranking vs analysis).
+3. AI composition task constrained to candidate fact IDs.
+4. Claim tracing: ID validity + conservative lexical checks + bounded repair loop.
+5. HTML render with print CSS; review flow; `hunt resume` / `hunt letter`.
 
-**Maintainer actions requested for the M2 exit criterion "10 real postings from 3+ sites":** run `hunt import` against real postings (paste + URLs) and file any normalizer gaps; with a real `ANTHROPIC_API_KEY`, run a few plain-text imports so live responses populate `~/.hunt/cache/ai` and can be promoted to committed replay fixtures.
+**Standing maintainer actions:** real-posting validation sweep (M2 exit) and live AI fixture recording + behavioral eval, both need a real provider key.
 
 ---
 
@@ -60,18 +61,19 @@ On approval, begin **M3 — Analysis**:
 
 | Item | Reason | Recommendation |
 |------|--------|----------------|
-| CLI version string duplicated in `run.ts` | Carried from M0 | Resolve during M5 packaging |
+| CLI version string duplicated in `run.ts` | Carried from M0 | M5 packaging |
 | `hunt profile show` output minimal | Carried from M1 | M5 CLI polish |
-| AI extraction quality unvalidated against real models (fixtures are hand-authored) | No API key/network in the dev loop; record/replay infra is ready | Record live fixtures + start the eval set when M3 touches prompts |
-| LinkedIn DOM selectors pinned to current public markup | Inherent source brittleness (SDD §23) | Fixture tests make breakage loud; fix = new fixture + selector update |
-| No `hunt jobs list/show` yet — import report is the only view | M5 scope | Arrives with tracking CLI |
+| AI quality unvalidated against real models | Carried from M2; prompt locks now force versioning discipline, but behavioral eval needs live calls | Record fixtures + run eval when a key is available |
+| Skill dictionary is deliberately small (~55 entries) | Quality investment is data-only and incremental | Grow it from real usage; every unknown-but-relevant skill in a posting is a dictionary PR |
+| Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
+| No `hunt jobs list/show` | M5 scope | With tracking CLI |
 
 ---
 
 ## Risks
 
-- LinkedIn may block unauthenticated fetches entirely in some regions — mitigated by auth-wall detection with an explicit paste hint (verified in tests).
-- Prompt-injection surface opens with M2 (untrusted posting text reaches the LLM): mitigations per SDD §21 are structural — extraction output is schema-bound, system fields are never extractor-controlled (tested), AI has no tools/storage access.
+- Fit-score calibration is untested against real outcomes — by design it waits for §19 analytics (fit-vs-outcome). Until then scores are comparative, not absolute; the CLI shows the breakdown to keep them interpretable.
+- The example profile scoring 28/100 against the Go/Kubernetes fixture is *correct* behavior (real gap) — worth remembering when users report "low scores" as bugs.
 
 ---
 

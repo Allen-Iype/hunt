@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import {
   createAiJobExtractor,
+  createAiJobInsights,
   createAnthropicProvider,
   createFileResponseCache,
   createOllamaProvider,
   type LLMProvider,
 } from "@hunt/ai";
-import type { ExtractJobPort } from "@hunt/core";
+import type { ExtractJobPort, JobInsightsPort } from "@hunt/core";
 
 /**
  * AI provider configuration from environment variables (decisions log #10;
@@ -21,17 +22,21 @@ import type { ExtractJobPort } from "@hunt/core";
 const DEFAULT_MODELS = { anthropic: "claude-sonnet-5", ollama: "llama3.2" } as const;
 
 export type AiSetup =
-  | { extractor: ExtractJobPort; providerId: string }
-  | { extractor: undefined; configError?: string };
+  | { extractor: ExtractJobPort; insights: JobInsightsPort; providerId: string }
+  | { extractor: undefined; insights: undefined; configError?: string };
 
 export function buildAiSetup(huntHome: string, env: NodeJS.ProcessEnv = process.env): AiSetup {
   const providerName = env.HUNT_AI_PROVIDER ?? (env.ANTHROPIC_API_KEY ? "anthropic" : undefined);
-  if (providerName === undefined) return { extractor: undefined };
+  if (providerName === undefined) return { extractor: undefined, insights: undefined };
 
   let provider: LLMProvider;
   if (providerName === "anthropic") {
     if (!env.ANTHROPIC_API_KEY) {
-      return { extractor: undefined, configError: "HUNT_AI_PROVIDER=anthropic requires ANTHROPIC_API_KEY" };
+      return {
+        extractor: undefined,
+        insights: undefined,
+        configError: "HUNT_AI_PROVIDER=anthropic requires ANTHROPIC_API_KEY",
+      };
     }
     provider = createAnthropicProvider({
       apiKey: env.ANTHROPIC_API_KEY,
@@ -45,10 +50,15 @@ export function buildAiSetup(huntHome: string, env: NodeJS.ProcessEnv = process.
   } else {
     return {
       extractor: undefined,
+      insights: undefined,
       configError: `unknown HUNT_AI_PROVIDER "${providerName}" (expected "anthropic" or "ollama")`,
     };
   }
 
   const cache = createFileResponseCache(join(huntHome, "cache", "ai"));
-  return { extractor: createAiJobExtractor({ provider, cache }), providerId: provider.id };
+  return {
+    extractor: createAiJobExtractor({ provider, cache }),
+    insights: createAiJobInsights({ provider, cache }),
+    providerId: provider.id,
+  };
 }

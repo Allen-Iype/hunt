@@ -4,7 +4,7 @@
 
 Hunt helps software engineers run their entire job search — importing and analyzing jobs, generating grounded resumes and cover letters, and tracking applications — with all data on your machine and AI as a replaceable enhancement, never the source of truth.
 
-> **Status: pre-alpha.** Milestones M0–M2 complete: canonical models, SQLite storage with a content-addressed raw vault, profile management, and job import from URLs or pasted postings with tiered extraction (structured data → known markup → AI fallback). Job analysis arrives with M3.
+> **Status: pre-alpha.** Milestones M0–M3 complete: canonical models, SQLite storage with a content-addressed raw vault, profile management, job import with tiered extraction, and job analysis — deterministic skill matching and fit scoring, with optional AI-classified requirements, red flags, and gap narratives. Resume generation arrives with M4.
 
 ## Principles
 
@@ -50,6 +50,8 @@ hunt profile show
 hunt import https://www.linkedin.com/jobs/view/…   # or any job page URL
 hunt import -                                      # paste a posting, Ctrl-D (works for every site)
 hunt import --file saved-posting.html
+
+hunt analyze <job-id>                              # fit score, matched/missing skills, gaps
 ```
 
 Data lives in `~/.hunt` (override with `HUNT_HOME`). Your profile is the single source of truth for everything Hunt will ever generate — only facts recorded there can appear in a resume.

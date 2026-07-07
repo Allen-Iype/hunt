@@ -2,6 +2,29 @@
 
 All notable changes, grouped by milestone.
 
+## M3 — Analysis (2026-07-07)
+
+### Added
+- **Core**: skill dictionary v1 (~55 canonical skills with aliases and categories; versioned pure data) with token-based detection (whole-token matching — "go" never matches "google"; C++/C#/node.js handled) and two-sided canonical profile↔job matching; `parseCompensation` (ranges, k-suffix, symbols/codes, periods); `computeFitScore` — weighted components renormalized over what's computable (ADR-0007), `deriveCandidateSeniority` from experience span (decisions #14); `JobAnalysis` model with per-field provenance (`deterministic|import|ai`) and per-requirement coverage fractions; `JobInsights` contract; ports `JobInsightsPort`, `JobAnalysisRepository`.
+- **`@hunt/ai`**: `job-insights` task v1 (requirement classification, seniority inference, red flags, gap narrative grounded in provided match results; fit score deliberately absent from the schema); **prompt locks** — SHA-256 of every task's instructions committed and test-enforced, so prompt edits force version bumps (decisions #13).
+- **Storage**: migration 3 (`job_analyses`) + repository (upsert by deterministic id; latest-per-job).
+- **Capabilities**: `AnalyzeJob` — deterministic pass → optional AI pass → merge (deterministic/import wins conflicts) → deterministic score → persist. Fully functional with no AI configured.
+- **CLI**: `hunt analyze <job-id>` with score breakdown, matched/missing skills, per-requirement coverage, provenance markers, and an explicit note when running deterministic-only.
+- Tests 153 → 198.
+
+### Changed
+- Nothing outside additive wiring (container, storage interface).
+
+### Fixed
+- `parseCompensation` treated "401k" as a salary figure — caught by tests during this milestone, fixed with a noise guard.
+
+### Deferred
+- Behavioral eval set against live models (maintainer action; prompt locks cover the offline invariant).
+- Requirement source-span offsets (SDD §11) — no consumer yet.
+
+### Breaking Changes
+- None.
+
 ## M2 — Ingestion (2026-07-07)
 
 ### Added

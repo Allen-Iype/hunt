@@ -10,3 +10,4 @@ export { ProviderError, type LLMProvider, type LLMRequest, type LLMResponse } fr
 export { createAnthropicProvider } from "./providers/anthropic.js";
 export { createOllamaProvider } from "./providers/ollama.js";
 export { createAiJobExtractor, EXTRACT_JOB_TASK } from "./tasks/extract-job.js";
+export { createAiJobInsights, JOB_INSIGHTS_TASK } from "./tasks/job-insights.js";

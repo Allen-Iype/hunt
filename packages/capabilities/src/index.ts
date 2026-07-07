@@ -10,3 +10,9 @@ export {
   type ImportJobDeps,
   type ImportJobResult,
 } from "./import-job.js";
+export {
+  createAnalyzeJob,
+  type AnalyzeJobDeps,
+  type AnalyzeJobInput,
+  type AnalyzeJobResult,
+} from "./analyze-job.js";
