@@ -22,9 +22,15 @@ pnpm build && pnpm test && pnpm lint
 
 | Package | Role | May depend on |
 |---------|------|---------------|
-| `@hunt/core` | Canonical models, schemas, pure domain logic, port interfaces | `zod` only |
+| `@hunt/core` | Canonical models, schemas, state machine, pure domain logic, port interfaces | `zod` only |
+| `@hunt/capabilities` | Use-case orchestrations over core + ports; no filesystem/network of their own | `core`, `yaml`, `zod` |
+| `@hunt/storage` | SQLite repositories, migrations, raw vault (implements core ports) | `core`, `better-sqlite3` |
+| `@hunt/ai` | AI gateway + provider adapters (raw HTTP, ADR-0012); implements core's domain-shaped AI ports (ADR-0013) | `core`, `zod` |
+| `@hunt/ingestion` | Source adapters, envelopes, tiered normalization; never imports `@hunt/ai` — AI arrives by port injection | `core`, `node-html-parser` |
 | `@hunt/cli` | Presentation + composition root | everything |
-| (future) `capabilities`, `storage`, `ai`, `ingestion`, `render` | See SDD §6 | `core` + own external deps |
+| (future) `render` | See SDD §6 | `core` + own external deps |
+
+Adapter packages (`storage`, `ai`, `ingestion`, `render`) must stay **mutually deletable**: none may import another; they meet only through core ports, wired in the CLI's composition root.
 
 ## Testing expectations
 

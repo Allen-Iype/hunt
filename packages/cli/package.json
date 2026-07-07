@@ -11,5 +11,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/ai": "workspace:*",
+    "@hunt/capabilities": "workspace:*",
+    "@hunt/core": "workspace:*",
+    "@hunt/ingestion": "workspace:*",
+    "@hunt/storage": "workspace:*"
   }
 }

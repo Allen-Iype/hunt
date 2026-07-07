@@ -1,0 +1,61 @@
+# Hunt profile — copy to your own file and import with:
+#   hunt profile import my-profile.yaml
+#
+# This file is the single source of truth for resume generation: Hunt will
+# only ever put claims in generated documents that trace back to facts here.
+# Dates must be quoted ISO strings ("YYYY-MM-DD").
+#
+# Fact IDs are assigned automatically and deterministically; you may set an
+# explicit `id` on any entry if you want a stable handle to reference (e.g.
+# in a skill's evidenceFactIds).
+
+basics:
+  name: Ada Example
+  email: ada@example.com
+  location: Berlin, Germany
+  headline: Senior Software Engineer
+  links:
+    - label: GitHub
+      url: https://github.com/ada-example
+
+experience:
+  - company: Acme Corp
+    role: Senior Software Engineer
+    startDate: "2021-03-01"
+    location: Berlin
+    achievements:
+      - text: Reduced API p99 latency from 800ms to 120ms by introducing request coalescing
+        skills: [performance, node.js]
+      - text: Led migration of 40 services to TypeScript with zero production incidents
+        skills: [typescript, migration]
+  - company: Widgets GmbH
+    role: Software Engineer
+    startDate: "2018-06-01"
+    endDate: "2021-02-28"
+    achievements:
+      - text: Built the billing reconciliation pipeline processing 2M events/day
+        skills: [python, data-pipelines]
+
+skills:
+  - name: TypeScript
+    level: expert
+    years: 6
+  - name: Node.js
+    level: expert
+    years: 6
+  - name: Python
+    level: proficient
+    years: 4
+
+projects:
+  - name: opensourcetool
+    description: A CLI for wrangling widget configs; 1.2k GitHub stars
+    url: https://github.com/ada-example/opensourcetool
+    skills: [typescript, cli]
+
+education:
+  - institution: Technical University of Examplestadt
+    degree: BSc
+    field: Computer Science
+    startDate: "2014-10-01"
+    endDate: "2018-05-31"

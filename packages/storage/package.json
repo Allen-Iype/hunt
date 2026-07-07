@@ -1,0 +1,21 @@
+{
+  "name": "@hunt/storage",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt storage adapters: SQLite repositories, migrations, and the content-addressed raw vault.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/core": "workspace:*",
+    "better-sqlite3": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
+  }
+}

@@ -1,0 +1,15 @@
+Platform Engineer — Pied Piper (Remote, EU)
+
+Pied Piper is building the decentralized internet. We're hiring a Platform
+Engineer to own our Kubernetes-based compute layer.
+
+What you'll do:
+- Operate and evolve our multi-region Kubernetes clusters
+- Build internal tooling in Go and TypeScript
+
+What we need:
+- 5+ years of infrastructure experience (required)
+- Deep Kubernetes knowledge (required)
+- Rust experience is a plus
+
+Compensation: EUR 95,000 - 120,000 per year

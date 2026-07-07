@@ -1,0 +1,18 @@
+{
+  "name": "@hunt/ingestion",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt ingestion: source adapters, raw envelopes, tiered normalization into canonical jobs.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/core": "workspace:*",
+    "node-html-parser": "^7.0.0"
+  }
+}

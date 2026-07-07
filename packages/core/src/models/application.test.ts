@@ -74,4 +74,40 @@ describe("ApplicationEventSchema", () => {
         .success,
     ).toBe(false);
   });
+
+  it("types payloads per kind: status_changed data must be statuses", () => {
+    expect(
+      ApplicationEventSchema.safeParse({
+        ...validEvent,
+        data: { from: "preparing", to: "hired" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("types payloads per kind: note_added requires text", () => {
+    expect(
+      ApplicationEventSchema.safeParse({
+        ...validEvent,
+        kind: "note_added",
+        data: {},
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationEventSchema.safeParse({
+        ...validEvent,
+        kind: "note_added",
+        data: { text: "Recruiter replied" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("types payloads per kind: contact_added validates email", () => {
+    expect(
+      ApplicationEventSchema.safeParse({
+        ...validEvent,
+        kind: "contact_added",
+        data: { name: "Sam Recruiter", email: "not-an-email" },
+      }).success,
+    ).toBe(false);
+  });
 });

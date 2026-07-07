@@ -1,0 +1,19 @@
+{
+  "name": "@hunt/capabilities",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt capability layer: use-case orchestrations over core models and ports.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/core": "workspace:*",
+    "yaml": "^2.6.0",
+    "zod": "^4.0.0"
+  }
+}

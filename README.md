@@ -4,7 +4,7 @@
 
 Hunt helps software engineers run their entire job search — importing and analyzing jobs, generating grounded resumes and cover letters, and tracking applications — with all data on your machine and AI as a replaceable enhancement, never the source of truth.
 
-> **Status: pre-alpha.** Milestone M0 (skeleton) complete. Nothing user-facing yet beyond `hunt --version`.
+> **Status: pre-alpha.** Milestones M0–M2 complete: canonical models, SQLite storage with a content-addressed raw vault, profile management, and job import from URLs or pasted postings with tiered extraction (structured data → known markup → AI fallback). Job analysis arrives with M3.
 
 ## Principles
 
@@ -18,8 +18,11 @@ Hunt helps software engineers run their entire job search — importing and anal
 
 ```
 packages/
-  core/    canonical models, schemas, pure domain logic (no I/O, no SDKs)
-  cli/     command-line interface
+  core/          canonical models, schemas, state machine, ports (no I/O, no SDKs)
+  capabilities/  use-case orchestrations (ImportProfile, …)
+  storage/       SQLite repositories, migrations, content-addressed raw vault
+  cli/           command-line interface + composition root
+examples/        profile.example.yaml
 docs/
   architecture/   software design document + ADRs
   implementation/ roadmap, progress, changelog, decisions, known issues
@@ -36,6 +39,29 @@ pnpm test       # run all tests
 pnpm lint       # includes the core dependency-rule check
 pnpm hunt --version
 ```
+
+## Usage (so far)
+
+```sh
+cp examples/profile.example.yaml my-profile.yaml   # edit with your real facts
+hunt profile import my-profile.yaml
+hunt profile show
+
+hunt import https://www.linkedin.com/jobs/view/…   # or any job page URL
+hunt import -                                      # paste a posting, Ctrl-D (works for every site)
+hunt import --file saved-posting.html
+```
+
+Data lives in `~/.hunt` (override with `HUNT_HOME`). Your profile is the single source of truth for everything Hunt will ever generate — only facts recorded there can appear in a resume.
+
+**AI is optional.** Pages with structured data (most job boards) import with no AI at all. Postings that are plain prose need a provider:
+
+```sh
+export ANTHROPIC_API_KEY=sk-...      # cloud (Anthropic), or:
+export HUNT_AI_PROVIDER=ollama       # fully local via Ollama
+```
+
+`HUNT_AI_MODEL` and `HUNT_OLLAMA_URL` override the defaults. Job postings never leave your machine except to the provider you configured, and raw pages are always preserved locally in the vault.
 
 ## Documentation
 
