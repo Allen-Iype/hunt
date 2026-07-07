@@ -16,6 +16,7 @@ export default defineConfig({
       "@hunt/capabilities": pkg("capabilities"),
       "@hunt/ai": pkg("ai"),
       "@hunt/ingestion": pkg("ingestion"),
+      "@hunt/render": pkg("render"),
     },
   },
 });

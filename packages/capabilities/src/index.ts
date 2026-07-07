@@ -16,3 +16,27 @@ export {
   type AnalyzeJobInput,
   type AnalyzeJobResult,
 } from "./analyze-job.js";
+export {
+  createGenerateResume,
+  type GenerateResumeDeps,
+  type GenerateResumeInput,
+  type GenerateResumeResult,
+} from "./generate-resume.js";
+export {
+  createGenerateCoverLetter,
+  type GenerateCoverLetterDeps,
+  type GenerateCoverLetterInput,
+  type GenerateCoverLetterResult,
+} from "./generate-cover-letter.js";
+export {
+  createApproveDocument,
+  type ApproveDocumentDeps,
+  type ApproveDocumentInput,
+  type ApproveDocumentResult,
+} from "./approve-document.js";
+export {
+  composeGroundedDraft,
+  MAX_REPAIR_ROUNDS,
+  type ComposeAttempt,
+  type GroundedDraft,
+} from "./generation-pipeline.js";

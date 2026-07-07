@@ -2,11 +2,15 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   createAnalyzeJob,
+  createApproveDocument,
+  createGenerateCoverLetter,
+  createGenerateResume,
   createGetProfile,
   createImportJob,
   createImportProfile,
 } from "@hunt/capabilities";
 import { createJobIngestor } from "@hunt/ingestion";
+import { createHtmlRenderer } from "@hunt/render";
 import { openStorage, type HuntStorage } from "@hunt/storage";
 import { buildAiSetup } from "./ai-config.js";
 
@@ -27,6 +31,9 @@ export interface Container {
   getProfile: ReturnType<typeof createGetProfile>;
   importJob: ReturnType<typeof createImportJob>;
   analyzeJob: ReturnType<typeof createAnalyzeJob>;
+  generateResume: ReturnType<typeof createGenerateResume>;
+  generateCoverLetter: ReturnType<typeof createGenerateCoverLetter>;
+  approveDocument: ReturnType<typeof createApproveDocument>;
   aiConfigError?: string;
   close(): void;
 }
@@ -37,6 +44,7 @@ export function createContainer(
 ): Container {
   const storage = openStorage(huntHome);
   const ai = buildAiSetup(huntHome, env);
+  const render = createHtmlRenderer();
   const ingestor = createJobIngestor({
     vault: storage.vault,
     envelopes: storage.envelopes,
@@ -53,6 +61,23 @@ export function createContainer(
       analyses: storage.analyses,
       insights: ai.insights,
     }),
+    generateResume: createGenerateResume({
+      jobs: storage.jobs,
+      profiles: storage.profiles,
+      analyses: storage.analyses,
+      documents: storage.documents,
+      render,
+      composer: ai.resumeComposer,
+    }),
+    generateCoverLetter: createGenerateCoverLetter({
+      jobs: storage.jobs,
+      profiles: storage.profiles,
+      analyses: storage.analyses,
+      documents: storage.documents,
+      render,
+      composer: ai.coverLetterComposer,
+    }),
+    approveDocument: createApproveDocument({ documents: storage.documents }),
     ...("configError" in ai && ai.configError ? { aiConfigError: ai.configError } : {}),
     close: () => storage.close(),
   };

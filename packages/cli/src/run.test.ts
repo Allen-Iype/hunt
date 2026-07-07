@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -251,5 +251,151 @@ describe("hunt import (full AI path through a local fake Ollama)", () => {
     });
     expect(result.exitCode).toBe(1);
     expect(result.output).toContain('unknown HUNT_AI_PROVIDER "clippy"');
+  });
+});
+
+describe("hunt resume / letter / approve (full generation pipeline, M4 exit)", () => {
+  const clearAiEnv = () => {
+    for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {
+      delete process.env[key];
+    }
+  };
+
+  /**
+   * A fake Ollama that reads the composer prompt, grabs a real candidate fact
+   * id from it, and returns a draft grounded in that fact — exercising the
+   * real gateway → provider → claim-trace → render → persist path. `mode`
+   * controls whether the first draft is clean, or fabricates a metric so the
+   * bounded repair loop must engage.
+   */
+  function fakeComposerOllama(kind: "resume" | "letter", mode: "clean" | "repair-first") {
+    let calls = 0;
+    const server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        const prompt = JSON.parse(body).messages.map((m: { content: string }) => m.content).join("\n");
+        const factId = /\b(exp_[0-9a-f]+|ach_[0-9a-f]+|skill_[0-9a-f]+)\b/.exec(prompt)?.[1] ?? "exp_0";
+        calls++;
+        const fabricate = mode === "repair-first" && calls === 1;
+        const bulletText = fabricate
+          ? "Delivered 9999% throughput gains"
+          : "Delivered measurable engineering impact";
+        const bullet = { text: bulletText, sourceFactIds: [factId] };
+        const content =
+          kind === "resume"
+            ? JSON.stringify({
+                summary: { text: "Senior software engineer", sourceFactIds: [factId] },
+                sections: [{ heading: "Experience", bullets: [bullet] }],
+              })
+            : JSON.stringify({
+                hook: { text: "I am excited about this role", sourceFactIds: [factId] },
+                body: [bullet],
+                closing: { text: "Thank you for your consideration", sourceFactIds: [factId] },
+              });
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ message: { content } }));
+      });
+    });
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    return new Promise<string>((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        const address = server.address();
+        if (typeof address === "object" && address) resolve(`http://127.0.0.1:${address.port}`);
+      });
+    });
+  }
+
+  async function setup(huntHome: string): Promise<string> {
+    clearAiEnv();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const imported = await run(["import", "--file", fixture("greenhouse.html")], { huntHome });
+    const jobId = /job id: (job_[0-9a-f]+)/.exec(imported.output)![1]!;
+    await run(["analyze", jobId], { huntHome }); // deterministic, no AI needed
+    return jobId;
+  }
+
+  it("generates a grounded resume draft, renders HTML, and approves it", async () => {
+    const huntHome = tempHome();
+    const jobId = await setup(huntHome);
+    const url = await fakeComposerOllama("resume", "clean");
+    process.env.HUNT_AI_PROVIDER = "ollama";
+    process.env.HUNT_OLLAMA_URL = url;
+    cleanups.push(clearAiEnv);
+
+    const gen = await run(["resume", jobId], { huntHome });
+    expect(gen.exitCode).toBe(0);
+    expect(gen.output).toContain("Drafted resume:");
+    expect(gen.output).toMatch(/rendered: .*resume\.html/);
+    expect(gen.output).toContain("hunt approve");
+
+    const docId = /Drafted resume: (doc_[0-9a-f]+)/.exec(gen.output)![1]!;
+    const renderedPath = /rendered: (\S+resume\.html)/.exec(gen.output)![1]!;
+    // The rendered file is a self-contained HTML document on disk.
+    const html = readFileSync(renderedPath, "utf8");
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("Delivered measurable engineering impact");
+
+    const approve = await run(["approve", docId], { huntHome });
+    expect(approve.exitCode).toBe(0);
+    expect(approve.output).toContain("now marked sendable");
+
+    // Re-approval is refused (approved documents are immutable).
+    const again = await run(["approve", docId], { huntHome });
+    expect(again.exitCode).toBe(1);
+    expect(again.output).toContain("already approved");
+  });
+
+  it("engages the bounded repair loop when the first draft fabricates a metric", async () => {
+    const huntHome = tempHome();
+    const jobId = await setup(huntHome);
+    const url = await fakeComposerOllama("resume", "repair-first");
+    process.env.HUNT_AI_PROVIDER = "ollama";
+    process.env.HUNT_OLLAMA_URL = url;
+    cleanups.push(clearAiEnv);
+
+    const gen = await run(["resume", jobId], { huntHome });
+    expect(gen.exitCode).toBe(0);
+    expect(gen.output).toContain("repair rounds: 1");
+  });
+
+  it("generates a grounded cover letter draft", async () => {
+    const huntHome = tempHome();
+    const jobId = await setup(huntHome);
+    const url = await fakeComposerOllama("letter", "clean");
+    process.env.HUNT_AI_PROVIDER = "ollama";
+    process.env.HUNT_OLLAMA_URL = url;
+    cleanups.push(clearAiEnv);
+
+    const gen = await run(["letter", jobId], { huntHome });
+    expect(gen.exitCode).toBe(0);
+    expect(gen.output).toContain("Drafted letter:");
+    expect(gen.output).toMatch(/rendered: .*cover_letter\.html/);
+  });
+
+  it("refuses to generate without an AI provider (composition needs a model)", async () => {
+    const huntHome = tempHome();
+    const jobId = await setup(huntHome);
+    // No AI env set.
+    const gen = await run(["resume", jobId], { huntHome });
+    expect(gen.exitCode).toBe(1);
+    expect(gen.output).toContain("no AI provider configured");
+  });
+
+  it("requires an analysis before generating", async () => {
+    clearAiEnv();
+    const huntHome = tempHome();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const imported = await run(["import", "--file", fixture("greenhouse.html")], { huntHome });
+    const jobId = /job id: (job_[0-9a-f]+)/.exec(imported.output)![1]!;
+    // Skip analyze; configure AI so we reach the analysis check, not the provider check.
+    const url = await fakeComposerOllama("resume", "clean");
+    process.env.HUNT_AI_PROVIDER = "ollama";
+    process.env.HUNT_OLLAMA_URL = url;
+    cleanups.push(clearAiEnv);
+
+    const gen = await run(["resume", jobId], { huntHome });
+    expect(gen.exitCode).toBe(1);
+    expect(gen.output).toContain("hunt analyze");
   });
 });

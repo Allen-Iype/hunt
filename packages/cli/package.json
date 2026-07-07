@@ -17,6 +17,7 @@
     "@hunt/capabilities": "workspace:*",
     "@hunt/core": "workspace:*",
     "@hunt/ingestion": "workspace:*",
+    "@hunt/render": "workspace:*",
     "@hunt/storage": "workspace:*"
   }
 }

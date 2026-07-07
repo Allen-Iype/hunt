@@ -113,3 +113,35 @@ Deviations from, or refinements of, the SDD made during implementation. Architec
 - **Alternatives considered**: a self-declared profile field (invites inflation, another thing to maintain); AI inference (violates ADR-0007's determinism for score inputs that code can compute).
 - **Impact**: revisit if calibration analytics (§19) show the neutral/management handling skews scores.
 - **Affected SDD section**: §11, §18.
+
+## 15. Render is HTML + print CSS only; PDF deferred behind the port (M4)
+
+- **Date**: 2026-07-07
+- **Decision**: `@hunt/render` produces self-contained HTML with print CSS; automated PDF is out of V1. See **ADR-0014** for the architectural rationale.
+- **Reason**: avoids a heavy headless-browser dependency the SDD itself defers (§23); the port makes automated PDF a contained, additive change later.
+- **Impact**: the user prints to PDF from the browser; the `RenderPort` shape is unchanged when a PDF adapter arrives.
+- **Affected SDD section**: §17, §21, §23.
+
+## 16. Claim tracing runs on the AI draft before persistence, not on the stored document
+
+- **Date**: 2026-07-07
+- **Decision**: The claim tracer (`traceClaims`) validates the composer's *draft* (bullets + cited ids) against the candidate set inside the generation capability's repair loop. Only a draft that passes becomes a persisted `ResumeDocument`/`CoverLetterDocument`. The canonical document schema still requires `sourceFactIds` (min 1) so grounding is also a property of stored data.
+- **Reason**: violations must be caught *before* anything sendable exists, and the repair loop needs to feed them back to the composer (SDD §17). Tracing the stored document instead would let an ungrounded artifact exist transiently.
+- **Alternatives considered**: trace after persisting then delete on failure (an ungrounded document briefly exists — wrong for a trust-fatal invariant).
+- **Affected SDD section**: §11, §17.
+
+## 17. Conservative lexical claim check: numbers and dictionary skills only
+
+- **Date**: 2026-07-07
+- **Decision**: The lexical half of claim tracing checks two things beyond fact-id validity: (a) significant numbers in a bullet (metrics/percentages/magnitudes, ignoring bare 4-digit years) must appear in the cited facts, and (b) dictionary skills named in a bullet must be evidenced by the cited facts. It deliberately does not attempt general semantic entailment.
+- **Reason**: SDD §17 states the check "can't prove semantic faithfulness perfectly, but ID validity + lexical checks catch the dangerous failures (invented employers, inflated metrics)"; mandatory human review (step 5) covers the rest. Over-reaching lexical rules would produce false rejections and erode trust in the tool.
+- **Alternatives considered**: AI fact-checking the AI (ADR-0006 rejects this — AI checking AI compounds the failure mode); full NLI entailment (a model dependency and nondeterminism inside a deterministic gate).
+- **Impact**: the check's boundary is documented; if real usage surfaces a dangerous pattern it misses, the rule set grows (pure code, versioned with the generator).
+- **Affected SDD section**: §17.
+
+## 18. Bounded repair loop: 2 rounds, then surface violations (no persistence)
+
+- **Date**: 2026-07-07
+- **Decision**: `composeGroundedDraft` invokes the composer, traces, and on failure re-invokes with the violations, up to `MAX_REPAIR_ROUNDS = 2` (3 total attempts). If the final attempt still fails, generation returns a typed `grounding` error listing the surviving violations and persists nothing.
+- **Reason**: SDD §17 specifies "bounded repair loop … else surface to user". A small bound keeps cost and latency predictable; an unbounded loop against a stubborn model is a cost/hang risk.
+- **Affected SDD section**: §15 (bounded repair mirrors the gateway's own retry stance), §17.

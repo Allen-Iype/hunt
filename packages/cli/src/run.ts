@@ -1,5 +1,7 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { readFileSync } from "node:fs";
-import type { IngestJobInput } from "@hunt/core";
+import { join } from "node:path";
+import type { GeneratedDocument, IngestJobInput } from "@hunt/core";
 import { createContainer, resolveHuntHome } from "./container.js";
 
 /**
@@ -30,12 +32,16 @@ Usage:
   hunt import --file <path>      Import a job posting from a saved HTML/text file
   hunt import -                  Import a job posting pasted on stdin
   hunt analyze <job-id>          Analyze an imported job against your profile
+  hunt resume <job-id>           Generate a tailored, fact-grounded resume (draft)
+  hunt letter <job-id>           Generate a tailored, fact-grounded cover letter (draft)
+  hunt approve <doc-id>          Mark a reviewed document as approved (sendable)
 
-AI configuration (only needed for postings without structured data):
+AI configuration (job extraction fallback, and required for resume/letter generation):
   ANTHROPIC_API_KEY=...          use Anthropic (cloud)
   HUNT_AI_PROVIDER=ollama        use Ollama (local); HUNT_AI_MODEL / HUNT_OLLAMA_URL to override
 
-More commands arrive with upcoming milestones (analyze, resume, letter, track).`;
+Generated documents are drafts until you review the rendered HTML and run 'hunt approve'.
+More commands arrive with upcoming milestones (track, list, show).`;
 
 export async function run(
   argv: readonly string[],
@@ -57,6 +63,15 @@ export async function run(
   }
   if (command === "analyze") {
     return runAnalyze(rest, options);
+  }
+  if (command === "resume") {
+    return runGenerate("resume", rest, options);
+  }
+  if (command === "letter") {
+    return runGenerate("cover_letter", rest, options);
+  }
+  if (command === "approve") {
+    return runApprove(rest, options);
   }
   return { exitCode: 1, output: `Unknown command: ${command}\n\n${USAGE}` };
 }
@@ -127,6 +142,140 @@ function renderAnalysis(result: {
   lines.push(`Analysis id: ${a.id} (analyzer v${a.analyzerVersion}, ${a.aiUsed ? "AI-assisted" : "deterministic"})`);
   if (result.aiNote) lines.push(`Note: ${result.aiNote}`);
   return lines.join("\n");
+}
+
+/** Slug for the user-facing documents folder: <company>-<role>-<date>. */
+function documentSlug(companyName: string, title: string, createdAt: string): string {
+  const clean = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "untitled";
+  const date = createdAt.slice(0, 10);
+  return `${clean(companyName)}-${clean(title)}-${date}`;
+}
+
+/**
+ * Write a rendered document into the user-facing vault folder (SDD §12:
+ * documents/<company>-<role>-<date>/). Returns the absolute path.
+ */
+function writeRendered(
+  huntHome: string,
+  doc: GeneratedDocument,
+  companyName: string,
+  title: string,
+  content: string,
+  extension: string,
+): string {
+  const dir = join(huntHome, "documents", documentSlug(companyName, title, doc.createdAt));
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, `${doc.kind}.${extension}`);
+  writeFileSync(file, content, "utf8");
+  return file;
+}
+
+async function runGenerate(
+  kind: "resume" | "cover_letter",
+  args: readonly string[],
+  options: RunOptions,
+): Promise<RunResult> {
+  const label = kind === "resume" ? "resume" : "letter";
+  const jobId = args[0];
+  if (!jobId) {
+    return { exitCode: 1, output: `Usage: hunt ${label} <job-id>  (the id printed by hunt import)` };
+  }
+  const huntHome = options.huntHome ?? resolveHuntHome();
+  const container = createContainer(huntHome);
+  try {
+    if (container.aiConfigError) {
+      return { exitCode: 1, output: `AI configuration error: ${container.aiConfigError}` };
+    }
+    const result =
+      kind === "resume"
+        ? await container.generateResume({ jobId })
+        : await container.generateCoverLetter({ jobId });
+
+    if (!result.ok) {
+      const lines = [`Generation failed (${result.stage}): ${result.message}`];
+      if (result.hint) lines.push(`Hint: ${result.hint}`);
+      if (result.violations && result.violations.length > 0) {
+        lines.push(`Ungrounded claims that could not be repaired:`);
+        for (const v of result.violations) lines.push(`  [${v.path}] ${v.message}`);
+      }
+      return { exitCode: 1, output: lines.join("\n") };
+    }
+
+    const doc = result.document;
+    const companyName = doc.kind === "cover_letter" ? doc.companyName : "";
+    const jobTitle = doc.kind === "cover_letter" ? doc.jobTitle : "";
+    // For a resume the company/title come from the job, not the document.
+    const job = container.storage.jobs.getById(doc.jobId);
+    const path = writeRendered(
+      huntHome,
+      doc,
+      companyName || job?.companyName || "company",
+      jobTitle || job?.title || "role",
+      result.render.content,
+      result.render.extension,
+    );
+    return { exitCode: 0, output: renderGenerateResult(label, result, path) };
+  } finally {
+    container.close();
+  }
+}
+
+function renderGenerateResult(
+  label: string,
+  result: {
+    document: GeneratedDocument;
+    candidateCount: number;
+  },
+  path: string,
+): string {
+  const doc = result.document;
+  const bulletCount =
+    doc.kind === "resume"
+      ? 1 + doc.sections.reduce((n, s) => n + s.bullets.length, 0)
+      : 2 + doc.body.length;
+  const meta = doc.generationMeta;
+  const lines = [
+    `Drafted ${label}: ${doc.id}`,
+    `  rendered: ${path}`,
+    `  grounded: ${bulletCount} bullet(s), each cited to your profile facts`,
+    `  facts offered: ${result.candidateCount} · repair rounds: ${meta.repairRounds} · model: ${meta.providerId}`,
+    ``,
+    `Review the rendered HTML (open it / print to PDF), then make it sendable:`,
+    `  hunt approve ${doc.id}`,
+  ];
+  return lines.join("\n");
+}
+
+async function runApprove(args: readonly string[], options: RunOptions): Promise<RunResult> {
+  const docId = args[0];
+  if (!docId) {
+    return { exitCode: 1, output: "Usage: hunt approve <doc-id>  (the id printed by hunt resume/letter)" };
+  }
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    const existing = container.storage.documents.getById(docId);
+    const result = container.approveDocument({
+      documentId: docId,
+      ...(existing?.renderPath ? { renderPath: existing.renderPath } : {}),
+    });
+    if (!result.ok) {
+      return {
+        exitCode: 1,
+        output: `Approve failed (${result.stage}): ${result.message}` + (result.hint ? `\nHint: ${result.hint}` : ""),
+      };
+    }
+    return {
+      exitCode: 0,
+      output: `Approved ${result.document.kind} ${result.document.id} — it is now marked sendable.`,
+    };
+  } finally {
+    container.close();
+  }
 }
 
 async function runImport(args: readonly string[], options: RunOptions): Promise<RunResult> {

@@ -11,3 +11,5 @@ export { createAnthropicProvider } from "./providers/anthropic.js";
 export { createOllamaProvider } from "./providers/ollama.js";
 export { createAiJobExtractor, EXTRACT_JOB_TASK } from "./tasks/extract-job.js";
 export { createAiJobInsights, JOB_INSIGHTS_TASK } from "./tasks/job-insights.js";
+export { createAiResumeComposer, DRAFT_RESUME_TASK } from "./tasks/draft-resume.js";
+export { createAiCoverLetterComposer, DRAFT_COVER_LETTER_TASK } from "./tasks/draft-cover-letter.js";

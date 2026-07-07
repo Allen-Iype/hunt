@@ -88,4 +88,21 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX idx_job_analyses_job ON job_analyses(job_id, created_at DESC);
   `,
+  // 4 — generated documents (SDD §12, §17): resumes and cover letters, each
+  // an immutable version. Hot columns promoted (job, kind, status); the full
+  // canonical document lives in the `data` JSON column. application_id is
+  // nullable — documents can be generated before an application is tracked.
+  `
+  CREATE TABLE documents (
+    id             TEXT PRIMARY KEY,
+    job_id         TEXT NOT NULL REFERENCES jobs(id),
+    application_id TEXT REFERENCES applications(id),
+    kind           TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    render_path    TEXT,
+    data           TEXT NOT NULL,
+    created_at     TEXT NOT NULL
+  );
+  CREATE INDEX idx_documents_job ON documents(job_id, kind, created_at DESC);
+  `,
 ];

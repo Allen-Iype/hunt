@@ -2,6 +2,31 @@
 
 All notable changes, grouped by milestone.
 
+## M4 — Generation (2026-07-07)
+
+### Added
+- **Core**: `ResumeDocument` / `CoverLetterDocument` canonical models — structured content whose every bullet carries `sourceFactIds` (min 1), immutable `draft`→`approved` status, and a `generationMeta` reproducibility record (model, task version, candidate fact IDs, repair rounds); `CandidateFact` (the flattened, ID'd view of a profile fact the composer may cite); AI draft schemas (`ResumeDraft`/`CoverLetterDraft` — grounding is schema-required, system fields impossible to emit); `selectCandidateFacts` — deterministic relevance ranking (skill overlap · recency · kind weight, SDD §17 step 1); `traceClaims` — deterministic claim tracing (fact-ID validity + conservative lexical check on numbers/dictionary-skills + format lint) with a repair-feedback formatter; ports `ComposeResumePort`, `ComposeCoverLetterPort` (domain-shaped, ADR-0013), `RenderPort`, `DocumentRepository`.
+- **`@hunt/ai`**: `draft-resume` and `draft-cover-letter` tasks — composition constrained to the provided candidate fact IDs, with explicit anti-fabrication instructions; prompt locks extended to all four tasks.
+- **`@hunt/render`** (new package): implements `RenderPort` → self-contained HTML with embedded print CSS; all document text HTML-escaped (SDD §21); depends only on `@hunt/core`. Automated PDF deferred behind the port (ADR-0014).
+- **Storage**: migration 4 (`documents`) + repository (upsert by id; latest-per-job-and-kind).
+- **Capabilities**: `GenerateResume` / `GenerateCoverLetter` — select → compose → claim-trace → **bounded 2-round repair loop** → render → persist as a `draft` returning `needsReview` (never sendable without review); `ApproveDocument` — the one-way human-review gate, immutable thereafter; shared `composeGroundedDraft` loop.
+- **CLI**: `hunt resume <job-id>` / `hunt letter <job-id>` — generate, write rendered HTML into `documents/<company>-<role>-<date>/`, print a fact-grounding summary and the review/approve next step; `hunt approve <doc-id>` — mark a reviewed document sendable. Render port + composers wired in the composition root.
+- Tests 198 → 243, including a full generation E2E through the real gateway and a fake Ollama that grounds its draft in a candidate fact id parsed from the prompt (clean path and the repair-loop path), plus HTML injection-escaping and the immutability/approval invariants.
+
+### Changed
+- `AiSetup` now also produces the two composer ports; `HuntStorage` exposes `documents`; the CLI usage text documents the generation and approval commands.
+
+### Fixed
+- Nothing (no reported bugs).
+
+### Deferred
+- Automated PDF rendering (ADR-0014) — HTML + browser print covers V1.
+- Attaching approved documents to a tracked application — the model link exists; wiring lands with `hunt track` in M5.
+- Behavioral eval of the two composer tasks against live models (maintainer action; prompt locks cover the offline invariant).
+
+### Breaking Changes
+- None.
+
 ## M3 — Analysis (2026-07-07)
 
 ### Added

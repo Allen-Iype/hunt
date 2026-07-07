@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { DRAFT_COVER_LETTER_TASK } from "./draft-cover-letter.js";
+import { DRAFT_RESUME_TASK } from "./draft-resume.js";
 import { EXTRACT_JOB_TASK } from "./extract-job.js";
 import { JOB_INSIGHTS_TASK } from "./job-insights.js";
 import locks from "./prompt-locks.json";
@@ -11,7 +13,7 @@ import locks from "./prompt-locks.json";
  * update the lock entry, and re-run the eval set against a real provider.
  */
 describe("prompt locks", () => {
-  const tasks = [EXTRACT_JOB_TASK, JOB_INSIGHTS_TASK];
+  const tasks = [EXTRACT_JOB_TASK, JOB_INSIGHTS_TASK, DRAFT_RESUME_TASK, DRAFT_COVER_LETTER_TASK];
 
   it.each(tasks.map((t) => [`${t.id}@${t.version}`, t] as const))(
     "%s instructions match the committed lock",

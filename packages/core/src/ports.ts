@@ -1,6 +1,14 @@
 import type { Application, ApplicationEvent, NewApplicationEvent } from "./models/application.js";
+import type { CandidateFact } from "./models/candidate-fact.js";
 import type { Company } from "./models/company.js";
 import type { Id } from "./models/common.js";
+import type { CoverLetterDraft, ResumeDraft } from "./models/document-draft.js";
+import type {
+  CoverLetterDocument,
+  DocumentKind,
+  GeneratedDocument,
+  ResumeDocument,
+} from "./models/document.js";
 import type { RawEnvelope } from "./models/envelope.js";
 import type { ExtractedJobDraft } from "./models/extracted-job.js";
 import type { Job } from "./models/job.js";
@@ -135,4 +143,76 @@ export interface RawVault {
   put(content: string | Uint8Array): string;
   get(hash: string): Uint8Array | null;
   has(hash: string): boolean;
+}
+
+/**
+ * Context handed to the composer alongside the candidate facts. Deliberately
+ * minimal: the facts are the material, this is the target to tailor toward.
+ */
+export interface ComposeContext {
+  jobTitle: string;
+  companyName: string;
+  /** Short job summary/description context (truncated by the adapter). */
+  jobContext: string;
+  /** Skills the job requires that the candidate is missing — informs emphasis, never claims. */
+  missingSkills: readonly string[];
+}
+
+/**
+ * Domain-shaped AI composition ports (SDD §15, §17, ADR-0013). The composer
+ * receives ONLY the candidate fact set + job context and must cite candidate
+ * fact ids on every bullet (enforced structurally by the draft schema and the
+ * claim tracer). On a repair round the prior violations are passed back.
+ */
+export interface ComposeResumePort {
+  composeResume(input: {
+    context: ComposeContext;
+    candidateFacts: readonly CandidateFact[];
+    /** Present on a repair round: the violations to fix (SDD §17). */
+    repairFeedback?: string;
+  }): Promise<ComposeResult<ResumeDraft>>;
+}
+
+export interface ComposeCoverLetterPort {
+  composeCoverLetter(input: {
+    context: ComposeContext;
+    candidateFacts: readonly CandidateFact[];
+    repairFeedback?: string;
+  }): Promise<ComposeResult<CoverLetterDraft>>;
+}
+
+export type ComposeResult<TDraft> =
+  | { ok: true; draft: TDraft; providerId: string; taskVersion: number }
+  | { ok: false; kind: "unavailable" | "provider" | "invalid-output"; message: string };
+
+/**
+ * Rendering port (SDD §17 step 4). Documents → self-contained output. The
+ * concrete renderer (HTML + print CSS in V1; PDF later) is an adapter detail;
+ * consumers see only "give me a document, get bytes and a suggested filename".
+ */
+export interface RenderPort {
+  renderResume(doc: ResumeDocument): RenderOutput;
+  renderCoverLetter(doc: CoverLetterDocument): RenderOutput;
+}
+
+export interface RenderOutput {
+  /** MIME type of `content` (e.g. "text/html"). */
+  contentType: string;
+  /** Rendered document bytes/text. */
+  content: string;
+  /** Suggested file extension without the dot (e.g. "html"). */
+  extension: string;
+}
+
+/**
+ * Repository for generated documents (SDD §12). Documents are immutable
+ * versions; approval flips status once and is enforced by the capability
+ * layer, not re-derivable, so it is stored directly.
+ */
+export interface DocumentRepository {
+  save(document: GeneratedDocument): void;
+  getById(id: Id): GeneratedDocument | null;
+  listForJob(jobId: Id): GeneratedDocument[];
+  /** Latest document of a kind for a job (most recent createdAt). */
+  getLatestForJob(jobId: Id, kind: DocumentKind): GeneratedDocument | null;
 }

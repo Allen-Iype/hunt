@@ -1,0 +1,17 @@
+{
+  "name": "@hunt/render",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt document rendering: canonical documents to self-contained HTML with print CSS (SDD §17).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/core": "workspace:*"
+  }
+}

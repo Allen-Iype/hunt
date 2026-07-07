@@ -27,8 +27,8 @@ pnpm build && pnpm test && pnpm lint
 | `@hunt/storage` | SQLite repositories, migrations, raw vault (implements core ports) | `core`, `better-sqlite3` |
 | `@hunt/ai` | AI gateway + provider adapters (raw HTTP, ADR-0012); implements core's domain-shaped AI ports (ADR-0013) | `core`, `zod` |
 | `@hunt/ingestion` | Source adapters, envelopes, tiered normalization; never imports `@hunt/ai` — AI arrives by port injection | `core`, `node-html-parser` |
+| `@hunt/render` | Document renderers behind core's `RenderPort`; HTML + print CSS in V1 (ADR-0014) | `core` only |
 | `@hunt/cli` | Presentation + composition root | everything |
-| (future) `render` | See SDD §6 | `core` + own external deps |
 
 Adapter packages (`storage`, `ai`, `ingestion`, `render`) must stay **mutually deletable**: none may import another; they meet only through core ports, wired in the CLI's composition root.
 

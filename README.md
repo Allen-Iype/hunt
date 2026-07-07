@@ -52,18 +52,24 @@ hunt import -                                      # paste a posting, Ctrl-D (wo
 hunt import --file saved-posting.html
 
 hunt analyze <job-id>                              # fit score, matched/missing skills, gaps
+
+hunt resume <job-id>                               # tailored, fact-grounded resume (draft)
+hunt letter <job-id>                               # tailored, fact-grounded cover letter (draft)
+hunt approve <doc-id>                              # after you review the rendered HTML → sendable
 ```
 
 Data lives in `~/.hunt` (override with `HUNT_HOME`). Your profile is the single source of truth for everything Hunt will ever generate — only facts recorded there can appear in a resume.
 
-**AI is optional.** Pages with structured data (most job boards) import with no AI at all. Postings that are plain prose need a provider:
+**Grounded generation.** `hunt resume`/`hunt letter` never invent experience: deterministic selection picks candidate facts from your profile, the model may only phrase and emphasize them (every bullet must cite the fact IDs it draws from), and a deterministic claim tracer rejects any uncited claim, invented employer, or inflated metric before anything is written. The result is a **draft** rendered to self-contained HTML in `~/.hunt/documents/…`; you review it (open it, print to PDF), then `hunt approve` marks it sendable. Nothing is sendable without that review.
+
+**AI is optional — except for generation.** Pages with structured data (most job boards) import with no AI at all, and analysis, tracking, and search never use it. Prose-only postings and resume/cover-letter composition need a provider:
 
 ```sh
 export ANTHROPIC_API_KEY=sk-...      # cloud (Anthropic), or:
 export HUNT_AI_PROVIDER=ollama       # fully local via Ollama
 ```
 
-`HUNT_AI_MODEL` and `HUNT_OLLAMA_URL` override the defaults. Job postings never leave your machine except to the provider you configured, and raw pages are always preserved locally in the vault.
+`HUNT_AI_MODEL` and `HUNT_OLLAMA_URL` override the defaults. Job postings and profile facts never leave your machine except to the provider you configured, and raw pages are always preserved locally in the vault.
 
 ## Documentation
 

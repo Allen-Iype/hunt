@@ -2,6 +2,7 @@ import type { Database } from "better-sqlite3";
 import type {
   ApplicationRepository,
   CompanyRepository,
+  DocumentRepository,
   EnvelopeRepository,
   JobAnalysisRepository,
   JobRepository,
@@ -13,6 +14,7 @@ import { createApplicationRepository } from "./repositories/applications.js";
 import { createEnvelopeRepository } from "./repositories/envelopes.js";
 import { createJobAnalysisRepository } from "./repositories/analyses.js";
 import { createCompanyRepository } from "./repositories/companies.js";
+import { createDocumentRepository } from "./repositories/documents.js";
 import { createJobRepository } from "./repositories/jobs.js";
 import { createProfileRepository } from "./repositories/profiles.js";
 import { createFileVault } from "./vault.js";
@@ -26,6 +28,7 @@ export { createJobRepository } from "./repositories/jobs.js";
 export { createApplicationRepository, InvalidEventError } from "./repositories/applications.js";
 export { createEnvelopeRepository } from "./repositories/envelopes.js";
 export { createJobAnalysisRepository } from "./repositories/analyses.js";
+export { createDocumentRepository } from "./repositories/documents.js";
 
 export interface HuntStorage {
   profiles: ProfileRepository;
@@ -34,6 +37,7 @@ export interface HuntStorage {
   applications: ApplicationRepository;
   envelopes: EnvelopeRepository;
   analyses: JobAnalysisRepository;
+  documents: DocumentRepository;
   vault: RawVault;
   close(): void;
 }
@@ -48,6 +52,7 @@ export function openStorage(rootDir: string): HuntStorage {
     applications: createApplicationRepository(db),
     envelopes: createEnvelopeRepository(db),
     analyses: createJobAnalysisRepository(db),
+    documents: createDocumentRepository(db),
     vault: createFileVault(rootDir),
     close: () => db.close(),
   };
