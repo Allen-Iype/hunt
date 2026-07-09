@@ -25,7 +25,8 @@ pnpm build         # tsc across packages
 | AI record/replay | ✅ infra active | the response cache *is* the replay store (decisions #11); live-recorded fixtures + behavioral eval set pending a real API key |
 | Prompt locks (prompt edits require task-version bumps) | ✅ active | `packages/ai/src/tasks/prompt-locks.test.ts` + committed `prompt-locks.json` (decisions #13) |
 | Full-AI-path E2E (real gateway + Ollama adapter against a local fake HTTP server) | ✅ active | `packages/cli/src/run.test.ts` — covers both import (extract-job) and generation (draft-resume/draft-cover-letter); the fake provider grounds its draft in a candidate fact id parsed from the prompt, exercising the real claim-trace + repair path |
-| E2E smoke (full V1 flow via CLI) | ⬜ grows with each milestone; complete flow mandatory before v0.1 | import → analyze → resume/letter → approve legs active; the track leg arrives M5 |
+| E2E smoke (full V1 flow via CLI) | ✅ active | the complete loop — import → analyze → resume → approve → track → attach → show — runs in one test (`packages/cli/src/run.test.ts`); this is the SDD §26 "one test that proves the product works" |
+| Tracking + backup (deterministic, no AI) | ✅ active | `packages/cli/src/run.test.ts` (track/list/show/backup, invalid-transition rejection) and `packages/capabilities/src/{track-application,query-applications}.test.ts`; `packages/storage/src/backup.test.ts` |
 | **No-AI suite** (non-AI surface with no provider configured) | ✅ active | structured/DOM import succeed with no provider; AI-needing paths fail fast with config guidance — must always stay green (SDD Principle 2) |
 
 ## Conventions

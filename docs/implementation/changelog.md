@@ -2,6 +2,29 @@
 
 All notable changes, grouped by milestone.
 
+## M5 — Tracking & release (2026-07-09) → v0.1
+
+### Added
+- **Capabilities**: `TrackApplication` — the single write path for the application lifecycle (auto-creates the application on first track, one per job; transition / note / attach-document / add-contact), all state-machine and event-log integrity enforced by the M1 repository; `QueryApplications` — read helpers for `hunt list` (jobs with fit score + tracking status, filterable) and `hunt show` (a job's analysis, documents, and full application timeline; resolves a job id or an application id).
+- **Storage**: `backup(destDir)` on `HuntStorage` — a consistent `VACUUM INTO` database snapshot plus the raw vault and rendered documents, guarded by a `PRAGMA integrity_check` and a refuse-to-overwrite check (SDD §14, §23).
+- **CLI**: `hunt track <job-id>` (`--status` / `--note` / `--attach` / `--contact`), `hunt list [--status <s>]`, `hunt show <job-id|app-id>`, `hunt backup [<dir>]`. Usage text lists the full lifecycle. `--attach` verifies the document exists first.
+- **Docs**: `docs/user-guide.md` (complete workflow + command reference + grounding + troubleshooting), `docs/data-format.md` (`~/.hunt` layout, SQLite schema, profile.yaml reference), `docs/adapter-authoring.md` (adding a job source); README updated to link them and show the tracking commands.
+- Full V1-loop E2E: import → analyze → resume → approve → track → attach → show in one test (SDD §26 "one test that proves the product works"). Tests 243 → 263.
+
+### Changed
+- `CLI_VERSION` now reads from the package manifest instead of a hardcoded string (clears M0 technical debt); version bumped to **0.1.0**.
+- `HuntStorage` exposes `backup`; the composition root wires `TrackApplication` and `QueryApplications`.
+
+### Fixed
+- Nothing (no reported bugs).
+
+### Deferred
+- Distribution / bundling for `npm i -g` or a single binary — packages are `private` with `workspace:*` deps; a real install path needs a bundler (maintainer action, decisions #20).
+- FTS surfacing, analytics dashboards, and `ghosted` staleness auto-suggestion remain post-V1 (SDD §26).
+
+### Breaking Changes
+- None.
+
 ## M4 — Generation (2026-07-07)
 
 ### Added

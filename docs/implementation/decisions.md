@@ -145,3 +145,21 @@ Deviations from, or refinements of, the SDD made during implementation. Architec
 - **Decision**: `composeGroundedDraft` invokes the composer, traces, and on failure re-invokes with the violations, up to `MAX_REPAIR_ROUNDS = 2` (3 total attempts). If the final attempt still fails, generation returns a typed `grounding` error listing the surviving violations and persists nothing.
 - **Reason**: SDD §17 specifies "bounded repair loop … else surface to user". A small bound keeps cost and latency predictable; an unbounded loop against a stubborn model is a cost/hang risk.
 - **Affected SDD section**: §15 (bounded repair mirrors the gateway's own retry stance), §17.
+
+## 19. One application per job, auto-created on first track (M5)
+
+- **Date**: 2026-07-09
+- **Decision**: `hunt track <job-id>` creates the application if none exists (starting at `discovered`, then applying the requested action), and there is exactly one application per job (id derived deterministically as `app_<fnv1a(jobId)>`). No separate `create` step.
+- **Reason**: SDD §13 frames TrackApplication's input as "application ID (or job ID to create)". A single command with auto-create is the least-friction path and matches how a user thinks ("I applied to this job"). One-app-per-job fits V1's single-user, single-pursuit-per-posting reality; the deterministic id makes re-tracking idempotent in its resolution.
+- **Alternatives considered**: an explicit `--create` step (extra ceremony, easy to forget); multiple applications per job (no V1 use case — re-applying to the same posting is rare and can be a note; revisit if it arises).
+- **Impact**: if multiple pursuits per job are ever needed, the id scheme changes to include a discriminator — a forward migration plus a resolution change, contained in TrackApplication/QueryApplications.
+- **Affected SDD section**: §12, §13.
+
+## 20. Distribution/bundling deferred; v0.1 ships runnable-from-source
+
+- **Date**: 2026-07-09
+- **Decision**: M5 completes the v0.1 feature set and the `hunt` bin (with a `files` allowlist and a package-manifest-derived version), but does **not** produce a published `npm i -g` package or a single binary. Hunt runs from a built checkout (`pnpm build` → `node packages/cli/dist/index.js` / `pnpm hunt`).
+- **Reason**: the workspace packages are `private` with `workspace:*` dependencies, which cannot publish as-is; a real install path needs a bundler (esbuild/tsup) or npm publishing of every `@hunt/*` package — a packaging project with its own decisions (bundle vs. publish-graph, binary targets) that shouldn't be rushed into the milestone that finishes the product. YAGNI until there's a distribution channel to serve.
+- **Alternatives considered**: bundle now with tsup (real work + config churn for a decision better made deliberately); publish all packages to npm (premature for a pre-1.0 single-app monorepo).
+- **Impact**: "run the loop in anger" (SDD §26 exit) works from source today; a maintainer picks the distribution mechanism when there are users to install for.
+- **Affected SDD section**: §26.

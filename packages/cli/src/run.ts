@@ -1,7 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { GeneratedDocument, IngestJobInput } from "@hunt/core";
+import { fileURLToPath } from "node:url";
+import type { ApplicationStatus, GeneratedDocument, IngestJobInput } from "@hunt/core";
+import type { TrackAction } from "@hunt/capabilities";
 import { createContainer, resolveHuntHome } from "./container.js";
 
 /**
@@ -10,7 +11,16 @@ import { createContainer, resolveHuntHome } from "./container.js";
  * need it.
  */
 
-export const CLI_VERSION = "0.0.1";
+/** Single source of truth for the version: the package manifest (clears M0 debt). */
+export const CLI_VERSION: string = (() => {
+  try {
+    const pkgPath = fileURLToPath(new URL("../package.json", import.meta.url));
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 export interface RunResult {
   exitCode: number;
@@ -36,12 +46,21 @@ Usage:
   hunt letter <job-id>           Generate a tailored, fact-grounded cover letter (draft)
   hunt approve <doc-id>          Mark a reviewed document as approved (sendable)
 
+  hunt track <job-id> --status <s>   Move an application through its lifecycle (creates it on first use)
+  hunt track <job-id> --note "..."   Add a note to the application
+  hunt track <job-id> --attach <doc-id>   Attach a generated document to the application
+  hunt list [--status <s>]       List imported jobs with fit score and tracking status
+  hunt show <job-id|app-id>      Show a job: analysis, documents, and application timeline
+  hunt backup [<dir>]            Snapshot ~/.hunt (database + vault + documents) to a directory
+
+Application statuses: discovered · interested · preparing · applied · screen · tech ·
+  onsite · offer_pending · offer · accepted · declined · rejected · withdrawn · ghosted
+
 AI configuration (job extraction fallback, and required for resume/letter generation):
   ANTHROPIC_API_KEY=...          use Anthropic (cloud)
   HUNT_AI_PROVIDER=ollama        use Ollama (local); HUNT_AI_MODEL / HUNT_OLLAMA_URL to override
 
-Generated documents are drafts until you review the rendered HTML and run 'hunt approve'.
-More commands arrive with upcoming milestones (track, list, show).`;
+Generated documents are drafts until you review the rendered HTML and run 'hunt approve'.`;
 
 export async function run(
   argv: readonly string[],
@@ -72,6 +91,18 @@ export async function run(
   }
   if (command === "approve") {
     return runApprove(rest, options);
+  }
+  if (command === "track") {
+    return runTrack(rest, options);
+  }
+  if (command === "list") {
+    return runList(rest, options);
+  }
+  if (command === "show") {
+    return runShow(rest, options);
+  }
+  if (command === "backup") {
+    return runBackup(rest, options);
   }
   return { exitCode: 1, output: `Unknown command: ${command}\n\n${USAGE}` };
 }
@@ -272,6 +303,199 @@ async function runApprove(args: readonly string[], options: RunOptions): Promise
     return {
       exitCode: 0,
       output: `Approved ${result.document.kind} ${result.document.id} — it is now marked sendable.`,
+    };
+  } finally {
+    container.close();
+  }
+}
+
+const APPLICATION_STATUSES: readonly ApplicationStatus[] = [
+  "discovered", "interested", "preparing", "applied", "screen", "tech", "onsite",
+  "offer_pending", "offer", "accepted", "declined", "rejected", "withdrawn", "ghosted",
+];
+
+/** Parse `hunt track` flags into exactly one action. */
+function parseTrackAction(args: readonly string[]): TrackAction | { error: string } {
+  const [flag, ...rest] = args;
+  const value = rest.join(" ").trim();
+  if (flag === "--status") {
+    if (!APPLICATION_STATUSES.includes(value as ApplicationStatus)) {
+      return { error: `unknown status "${value || "(none)"}"\nValid: ${APPLICATION_STATUSES.join(", ")}` };
+    }
+    return { kind: "transition", to: value as ApplicationStatus };
+  }
+  if (flag === "--note") {
+    if (!value) return { error: "--note needs text: hunt track <job-id> --note \"...\"" };
+    return { kind: "note", text: value };
+  }
+  if (flag === "--attach") {
+    if (!value) return { error: "--attach needs a document id: hunt track <job-id> --attach <doc-id>" };
+    return { kind: "attach", ref: value, label: "document" };
+  }
+  if (flag === "--contact") {
+    if (!value) return { error: "--contact needs a name: hunt track <job-id> --contact \"Name\"" };
+    return { kind: "contact", name: value };
+  }
+  return {
+    error: "Usage: hunt track <job-id> (--status <s> | --note \"...\" | --attach <doc-id> | --contact \"Name\")",
+  };
+}
+
+function runTrack(args: readonly string[], options: RunOptions): RunResult {
+  const [jobId, ...actionArgs] = args;
+  if (!jobId) {
+    return { exitCode: 1, output: "Usage: hunt track <job-id> --status <s> | --note \"...\" | --attach <doc-id>" };
+  }
+  const action = parseTrackAction(actionArgs);
+  if ("error" in action) return { exitCode: 1, output: action.error };
+
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    // For --attach, verify the document exists and belongs to this job (guard-rail).
+    if (action.kind === "attach") {
+      const doc = container.storage.documents.getById(action.ref);
+      if (!doc) {
+        return { exitCode: 1, output: `Document not found: ${action.ref} (see 'hunt show ${jobId}')` };
+      }
+      action.label = doc.kind;
+    }
+    const result = container.trackApplication({ jobId, action });
+    if (!result.ok) {
+      return {
+        exitCode: 1,
+        output: `Track failed (${result.stage}): ${result.message}` + (result.hint ? `\nHint: ${result.hint}` : ""),
+      };
+    }
+    const a = result.application;
+    const created = result.created ? " (application created)" : "";
+    let line: string;
+    switch (result.event.kind) {
+      case "status_changed":
+        line = `Status → ${a.status}${created}`;
+        break;
+      case "note_added":
+        line = `Note added${created} · status: ${a.status}`;
+        break;
+      case "document_attached":
+        line = `Attached ${result.event.data.ref}${created} · status: ${a.status}`;
+        break;
+      case "contact_added":
+        line = `Contact added${created} · status: ${a.status}`;
+        break;
+    }
+    return { exitCode: 0, output: `${line}\nApplication: ${a.id}` };
+  } finally {
+    container.close();
+  }
+}
+
+function runList(args: readonly string[], options: RunOptions): RunResult {
+  let statusFilter: ApplicationStatus | undefined;
+  if (args[0] === "--status") {
+    const value = args[1];
+    if (!value || !APPLICATION_STATUSES.includes(value as ApplicationStatus)) {
+      return { exitCode: 1, output: `Usage: hunt list [--status <s>]\nValid: ${APPLICATION_STATUSES.join(", ")}` };
+    }
+    statusFilter = value as ApplicationStatus;
+  }
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    const items = container.queries.list(statusFilter ? { status: statusFilter } : undefined);
+    if (items.length === 0) {
+      return {
+        exitCode: 0,
+        output: statusFilter
+          ? `No jobs with status "${statusFilter}".`
+          : "No jobs imported yet. Import one: hunt import <url|-|--file>",
+      };
+    }
+    const lines = items.map((i) => {
+      const fit = i.latestFitScore === null ? " -- " : `${String(i.latestFitScore).padStart(3)}`;
+      const status = i.application?.status ?? "untracked";
+      return `${fit}/100  [${status.padEnd(13)}]  ${i.job.title} @ ${i.job.companyName}  (${i.job.id})`;
+    });
+    return { exitCode: 0, output: [`Fit   Status           Job`, ...lines].join("\n") };
+  } finally {
+    container.close();
+  }
+}
+
+function runShow(args: readonly string[], options: RunOptions): RunResult {
+  const id = args[0];
+  if (!id) {
+    return { exitCode: 1, output: "Usage: hunt show <job-id|app-id>" };
+  }
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    const d = container.queries.detail(id);
+    if (!d) {
+      return { exitCode: 1, output: `Not found: ${id} (a job id from 'hunt import' or an application id)` };
+    }
+    const lines: string[] = [
+      `${d.job.title} @ ${d.job.companyName}`,
+      `  ${d.job.locations.join("; ") || "location unspecified"} · ${d.job.workplaceType} · ${d.job.seniority}`,
+      `  job id: ${d.job.id}`,
+    ];
+    if (d.analysis) {
+      lines.push(
+        `Analysis: fit ${d.analysis.fitScore}/100 · matched ${d.analysis.skills.matched.length} · missing ${d.analysis.skills.missing.length}` +
+          (d.analysis.skills.missing.length ? ` (${d.analysis.skills.missing.join(", ")})` : ""),
+      );
+    } else {
+      lines.push(`Analysis: none yet — run 'hunt analyze ${d.job.id}'`);
+    }
+    if (d.documents.length > 0) {
+      lines.push(`Documents:`);
+      for (const doc of d.documents) {
+        lines.push(`  ${doc.kind} [${doc.status}] ${doc.id}${doc.renderPath ? ` → ${doc.renderPath}` : ""}`);
+      }
+    }
+    if (d.application) {
+      lines.push(`Application: ${d.application.id} · status: ${d.application.status}`);
+      lines.push(`Timeline:`);
+      for (const e of d.events) {
+        lines.push(`  ${e.occurredAt}  ${formatEvent(e)}`);
+      }
+    } else {
+      lines.push(`Application: not tracked — start with 'hunt track ${d.job.id} --status applied'`);
+    }
+    return { exitCode: 0, output: lines.join("\n") };
+  } finally {
+    container.close();
+  }
+}
+
+function formatEvent(e: import("@hunt/core").ApplicationEvent): string {
+  switch (e.kind) {
+    case "status_changed":
+      return `${e.data.from} → ${e.data.to}${e.data.note ? ` (${e.data.note})` : ""}`;
+    case "note_added":
+      return `note: ${e.data.text}`;
+    case "document_attached":
+      return `attached ${e.data.label ?? "document"}: ${e.data.ref}`;
+    case "contact_added":
+      return `contact: ${e.data.name}${e.data.role ? ` (${e.data.role})` : ""}`;
+  }
+}
+
+function runBackup(args: readonly string[], options: RunOptions): RunResult {
+  const huntHome = options.huntHome ?? resolveHuntHome();
+  // Default target: a timestamped-ish dir the user names; here we require a dir
+  // for determinism (no wall-clock in output), defaulting to <home>/backups/latest.
+  const dest = args[0] ?? join(huntHome, "backups", "latest");
+  const container = createContainer(huntHome);
+  try {
+    const result = container.storage.backup(dest);
+    const parts = [
+      `Backup written to ${dest}`,
+      `  database: ${result.dbPath}`,
+      `  vault: ${result.vaultCopied ? "copied" : "(none)"} · documents: ${result.documentsCopied ? "copied" : "(none)"}`,
+    ];
+    return { exitCode: 0, output: parts.join("\n") };
+  } catch (err) {
+    return {
+      exitCode: 1,
+      output: `Backup failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   } finally {
     container.close();

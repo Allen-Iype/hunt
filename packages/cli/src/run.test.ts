@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -397,5 +397,154 @@ describe("hunt resume / letter / approve (full generation pipeline, M4 exit)", (
     const gen = await run(["resume", jobId], { huntHome });
     expect(gen.exitCode).toBe(1);
     expect(gen.output).toContain("hunt analyze");
+  });
+});
+
+describe("hunt track / list / show / backup (deterministic, no AI)", () => {
+  const clearAiEnv = () => {
+    for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {
+      delete process.env[key];
+    }
+  };
+
+  async function importedJob(huntHome: string): Promise<string> {
+    clearAiEnv();
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const imported = await run(["import", "--file", fixture("greenhouse.html")], { huntHome });
+    return /job id: (job_[0-9a-f]+)/.exec(imported.output)![1]!;
+  }
+
+  it("auto-creates an application on first track and records the timeline", async () => {
+    const huntHome = tempHome();
+    const jobId = await importedJob(huntHome);
+
+    const t1 = await run(["track", jobId, "--status", "applied"], { huntHome });
+    expect(t1.exitCode).toBe(0);
+    expect(t1.output).toContain("Status → applied (application created)");
+
+    const t2 = await run(["track", jobId, "--note", "Referred by Sam"], { huntHome });
+    expect(t2.exitCode).toBe(0);
+
+    const show = await run(["show", jobId], { huntHome });
+    expect(show.output).toContain("status: applied");
+    expect(show.output).toContain("discovered → applied");
+    expect(show.output).toContain("note: Referred by Sam");
+  });
+
+  it("rejects an invalid transition with the state machine's reason", async () => {
+    const huntHome = tempHome();
+    const jobId = await importedJob(huntHome);
+    await run(["track", jobId, "--status", "applied"], { huntHome });
+    const bad = await run(["track", jobId, "--status", "accepted"], { huntHome });
+    expect(bad.exitCode).toBe(1);
+    expect(bad.output).toContain('invalid transition "applied" → "accepted"');
+  });
+
+  it("rejects an unknown status value", async () => {
+    const huntHome = tempHome();
+    const jobId = await importedJob(huntHome);
+    const bad = await run(["track", jobId, "--status", "hired"], { huntHome });
+    expect(bad.exitCode).toBe(1);
+    expect(bad.output).toContain('unknown status "hired"');
+  });
+
+  it("list shows fit score and tracking status, filterable by status", async () => {
+    const huntHome = tempHome();
+    const jobId = await importedJob(huntHome);
+    await run(["analyze", jobId], { huntHome });
+
+    const untracked = await run(["list"], { huntHome });
+    expect(untracked.output).toContain("untracked");
+    expect(untracked.output).toContain("28/100");
+
+    await run(["track", jobId, "--status", "applied"], { huntHome });
+    const applied = await run(["list", "--status", "applied"], { huntHome });
+    expect(applied.output).toContain("applied");
+    const none = await run(["list", "--status", "offer"], { huntHome });
+    expect(none.output).toContain('No jobs with status "offer"');
+  });
+
+  it("backup snapshots the home into a target directory", async () => {
+    const huntHome = tempHome();
+    await importedJob(huntHome);
+    const dest = join(huntHome, "backup1");
+    const result = await run(["backup", dest], { huntHome });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("Backup written to");
+    expect(existsSync(join(dest, "hunt.db"))).toBe(true);
+  });
+
+  it("track --attach requires an existing document", async () => {
+    const huntHome = tempHome();
+    const jobId = await importedJob(huntHome);
+    const bad = await run(["track", jobId, "--attach", "doc_missing"], { huntHome });
+    expect(bad.exitCode).toBe(1);
+    expect(bad.output).toContain("Document not found");
+  });
+});
+
+describe("hunt full V1 loop (import → analyze → resume → approve → track → show)", () => {
+  const clearAiEnv = () => {
+    for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {
+      delete process.env[key];
+    }
+  };
+
+  function fakeResumeOllama() {
+    const server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        const prompt = JSON.parse(body).messages.map((m: { content: string }) => m.content).join("\n");
+        const factId = /\b(exp_[0-9a-f]+|ach_[0-9a-f]+|skill_[0-9a-f]+)\b/.exec(prompt)?.[1] ?? "exp_0";
+        const content = JSON.stringify({
+          summary: { text: "Senior software engineer", sourceFactIds: [factId] },
+          sections: [{ heading: "Experience", bullets: [{ text: "Delivered engineering impact", sourceFactIds: [factId] }] }],
+        });
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ message: { content } }));
+      });
+    });
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    return new Promise<string>((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        const address = server.address();
+        if (typeof address === "object" && address) resolve(`http://127.0.0.1:${address.port}`);
+      });
+    });
+  }
+
+  it("runs the complete product loop end to end", async () => {
+    const huntHome = tempHome();
+    clearAiEnv();
+
+    // 1. profile + 2. import + 3. analyze (deterministic)
+    await run(["profile", "import", EXAMPLE_PROFILE], { huntHome });
+    const imported = await run(["import", "--file", fixture("greenhouse.html")], { huntHome });
+    expect(imported.exitCode).toBe(0);
+    const jobId = /job id: (job_[0-9a-f]+)/.exec(imported.output)![1]!;
+    expect((await run(["analyze", jobId], { huntHome })).exitCode).toBe(0);
+
+    // 4. resume (AI) + 5. approve
+    const url = await fakeResumeOllama();
+    process.env.HUNT_AI_PROVIDER = "ollama";
+    process.env.HUNT_OLLAMA_URL = url;
+    cleanups.push(clearAiEnv);
+    const gen = await run(["resume", jobId], { huntHome });
+    expect(gen.exitCode).toBe(0);
+    const docId = /Drafted resume: (doc_[0-9a-f]+)/.exec(gen.output)![1]!;
+    expect((await run(["approve", docId], { huntHome })).exitCode).toBe(0);
+
+    // 6. track: apply, then attach the approved resume to the application
+    expect((await run(["track", jobId, "--status", "applied"], { huntHome })).exitCode).toBe(0);
+    const attach = await run(["track", jobId, "--attach", docId], { huntHome });
+    expect(attach.exitCode).toBe(0);
+
+    // 7. show: the whole story in one place
+    const show = await run(["show", jobId], { huntHome });
+    expect(show.output).toContain("fit 28/100");
+    expect(show.output).toContain(`resume [approved] ${docId}`);
+    expect(show.output).toContain("status: applied");
+    expect(show.output).toContain(`attached resume: ${docId}`);
   });
 });

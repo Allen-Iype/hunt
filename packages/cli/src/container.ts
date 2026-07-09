@@ -8,6 +8,8 @@ import {
   createGetProfile,
   createImportJob,
   createImportProfile,
+  createQueryApplications,
+  createTrackApplication,
 } from "@hunt/capabilities";
 import { createJobIngestor } from "@hunt/ingestion";
 import { createHtmlRenderer } from "@hunt/render";
@@ -34,6 +36,8 @@ export interface Container {
   generateResume: ReturnType<typeof createGenerateResume>;
   generateCoverLetter: ReturnType<typeof createGenerateCoverLetter>;
   approveDocument: ReturnType<typeof createApproveDocument>;
+  trackApplication: ReturnType<typeof createTrackApplication>;
+  queries: ReturnType<typeof createQueryApplications>;
   aiConfigError?: string;
   close(): void;
 }
@@ -78,6 +82,16 @@ export function createContainer(
       composer: ai.coverLetterComposer,
     }),
     approveDocument: createApproveDocument({ documents: storage.documents }),
+    trackApplication: createTrackApplication({
+      applications: storage.applications,
+      jobs: storage.jobs,
+    }),
+    queries: createQueryApplications({
+      jobs: storage.jobs,
+      applications: storage.applications,
+      analyses: storage.analyses,
+      documents: storage.documents,
+    }),
     ...("configError" in ai && ai.configError ? { aiConfigError: ai.configError } : {}),
     close: () => storage.close(),
   };

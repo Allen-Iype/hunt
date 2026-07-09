@@ -56,7 +56,17 @@ hunt analyze <job-id>                              # fit score, matched/missing 
 hunt resume <job-id>                               # tailored, fact-grounded resume (draft)
 hunt letter <job-id>                               # tailored, fact-grounded cover letter (draft)
 hunt approve <doc-id>                              # after you review the rendered HTML → sendable
+
+hunt track <job-id> --status applied               # track the application through its lifecycle
+hunt track <job-id> --attach <doc-id>              # attach a generated document
+hunt list                                          # all jobs with fit score + status
+hunt show <job-id>                                 # analysis, documents, and application timeline
+hunt backup ~/hunt-backup                          # snapshot database + vault + documents
 ```
+
+The **full user guide** ([docs/user-guide.md](docs/user-guide.md)) walks every
+command and the review flow; the **data format** ([docs/data-format.md](docs/data-format.md))
+documents exactly what lives in `~/.hunt`.
 
 Data lives in `~/.hunt` (override with `HUNT_HOME`). Your profile is the single source of truth for everything Hunt will ever generate — only facts recorded there can appear in a resume.
 
@@ -73,6 +83,9 @@ export HUNT_AI_PROVIDER=ollama       # fully local via Ollama
 
 ## Documentation
 
+- [User Guide](docs/user-guide.md) — the complete workflow and every command
+- [Data Format](docs/data-format.md) — what lives in `~/.hunt`, and how to leave with your data
+- [Adapter Authoring](docs/adapter-authoring.md) — add a new job source
 - [Software Design Document](docs/architecture/software-design.md) — the architectural source of truth
 - [ADRs](docs/architecture/adr/) — architectural decision records
 - [Roadmap](docs/implementation/roadmap.md) · [Progress](docs/implementation/progress.md) · [Changelog](docs/implementation/changelog.md)

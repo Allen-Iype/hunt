@@ -9,6 +9,7 @@ import type {
   ProfileRepository,
   RawVault,
 } from "@hunt/core";
+import { backupStorage, type BackupResult } from "./backup.js";
 import { openDatabase } from "./db.js";
 import { createApplicationRepository } from "./repositories/applications.js";
 import { createEnvelopeRepository } from "./repositories/envelopes.js";
@@ -29,6 +30,7 @@ export { createApplicationRepository, InvalidEventError } from "./repositories/a
 export { createEnvelopeRepository } from "./repositories/envelopes.js";
 export { createJobAnalysisRepository } from "./repositories/analyses.js";
 export { createDocumentRepository } from "./repositories/documents.js";
+export { BackupError, type BackupResult } from "./backup.js";
 
 export interface HuntStorage {
   profiles: ProfileRepository;
@@ -39,6 +41,8 @@ export interface HuntStorage {
   analyses: JobAnalysisRepository;
   documents: DocumentRepository;
   vault: RawVault;
+  /** Snapshot the DB (VACUUM INTO) + vault + documents into `destDir` (SDD §14). */
+  backup(destDir: string): BackupResult;
   close(): void;
 }
 
@@ -54,6 +58,7 @@ export function openStorage(rootDir: string): HuntStorage {
     analyses: createJobAnalysisRepository(db),
     documents: createDocumentRepository(db),
     vault: createFileVault(rootDir),
+    backup: (destDir: string) => backupStorage(db, rootDir, destDir),
     close: () => db.close(),
   };
 }

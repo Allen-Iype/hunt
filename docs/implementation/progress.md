@@ -9,15 +9,17 @@
 | M2 — Ingestion | ✅ |
 | M3 — Analysis | ✅ |
 | M4 — Generation | ✅ |
-| M5 — Tracking & release | ⬜ |
+| M5 — Tracking & release | ✅ |
+
+**All V1 milestones complete → v0.1.**
 
 ---
 
 ## Current Milestone
 
-**M4 — Generation** · Status: **complete, awaiting approval** · Completion: 100%
+**M5 — Tracking & release** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: the SDD §17 grounded pipeline end-to-end — deterministic fact selection → AI composition constrained to candidate fact IDs → deterministic claim tracing with a bounded repair loop → HTML render → mandatory human-review gate; cover letters on the same rails; `hunt resume` / `hunt letter` / `hunt approve`.
+Objective: complete the V1 loop and ship v0.1 — `hunt track/list/show/backup` over the existing state machine + event log, attach generated documents to applications, and the release documentation (user guide, data format, adapter authoring). No core changes: M5 is a capability + CLI layer over M1's primitives.
 
 ---
 
@@ -42,23 +44,31 @@ Objective: the SDD §17 grounded pipeline end-to-end — deterministic fact sele
 | 2026-07-07 | M4 Capabilities: `GenerateResume`/`GenerateCoverLetter` (select → compose → trace → bounded repair → render → persist draft, `needsReview`); `ApproveDocument` (one-way review gate, immutable thereafter); shared `composeGroundedDraft` loop | SDD §13, §17 |
 | 2026-07-07 | M4 CLI: `hunt resume`/`hunt letter` (writes HTML to `documents/<company>-<role>-<date>/`, prints grounding summary) and `hunt approve <doc-id>`; ports wired in container/ai-config | |
 | 2026-07-07 | Tests 198 → 243; full generation E2E through the real gateway + a fake Ollama that grounds in a parsed candidate fact id, incl. the repair-loop path | SDD §20 |
+| 2026-07-07 | M4 manually validated against a live local model (qwen3:14b via Ollama): resume grounded cleanly (0 repair rounds); cover letter for the same low-fit job hit the repair budget and was refused ("distributed systems" unsupported) — the grounding invariant holding under adversarial pressure. Isolated `HUNT_HOME`; nothing ungrounded persisted. | — |
+| 2026-07-09 | M5 Capabilities: `TrackApplication` (auto-create on first track; transition/note/attach/contact via the M1 state-machine-enforcing repo); `QueryApplications` (list with fit+status, detail by job-id or app-id). | SDD §13 |
+| 2026-07-09 | M5 Storage: `backup` (VACUUM INTO snapshot + vault/documents copy + integrity check) on `HuntStorage`. | SDD §14 |
+| 2026-07-09 | M5 CLI: `hunt track/list/show/backup`; `CLI_VERSION` now read from package.json (M0 debt cleared); version → 0.1.0. Full V1-loop E2E (import→analyze→resume→approve→track→attach→show). Tests 243 → 263. | SDD §20, §26 |
+| 2026-07-09 | Release docs: `docs/user-guide.md`, `docs/data-format.md`, `docs/adapter-authoring.md`; README updated. | SDD §26 |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M4 delivered, stopped per milestone workflow.
+Nothing in flight — M5 delivered, all V1 milestones complete (v0.1), stopped per milestone workflow.
 
 ---
 
 ## Next Steps
 
-On approval, begin **M5 — Tracking & release** (SDD §26/§27):
-1. `hunt track` / `list` / `show` over the application state machine + event log.
-2. Attach approved documents to applications (`documentId` already models this link).
-3. `hunt backup`; docs (README, adapter-authoring guide, data-format doc); packaging → **v0.1**.
+V1 is feature-complete. Remaining before a real release cut are **maintainer actions**, not milestones:
+1. Real-posting validation sweep (M2 exit) — 10 real postings via paste across 3+ sites.
+2. Live AI fixture recording + behavioral eval for the four AI tasks (extract-job, job-insights, draft-resume, draft-cover-letter) — needs a provider key; prompt locks cover the offline invariant.
+3. Distribution: the packages are `private` with `workspace:*` deps; a real `npm i -g` / single-binary build needs a bundler (deliberately deferred — see decisions #20).
+4. Run the full loop in anger on a real job search (the SDD §26 v0.1 exit criterion).
 
-**Standing maintainer actions:** real-posting validation sweep (M2 exit); live AI fixture recording + behavioral eval for the four AI tasks (extract-job, job-insights, draft-resume, draft-cover-letter) — all need a real provider key.
+Post-V1 order of attack is unchanged (SDD §27): resume-PDF import, browser extension + Greenhouse/Lever/Ashby adapters, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
+
+**Standing maintainer actions:** items 1–2 above.
 
 ---
 
@@ -66,15 +76,17 @@ On approval, begin **M5 — Tracking & release** (SDD §26/§27):
 
 | Item | Reason | Recommendation |
 |------|--------|----------------|
-| CLI version string duplicated in `run.ts` | Carried from M0 | M5 packaging |
-| `hunt profile show` output minimal | Carried from M1 | M5 CLI polish |
+| ~~CLI version string duplicated in `run.ts`~~ | ~~Carried from M0~~ | **Resolved M5**: `CLI_VERSION` reads from package.json |
+| `hunt profile show` output minimal | Carried from M1 | Acceptable for v0.1; richer view lands with the web UI |
 | AI quality unvalidated against real models | Carried from M2; prompt locks now force versioning discipline, but behavioral eval needs live calls | Record fixtures + run eval when a key is available |
 | Skill dictionary is deliberately small (~55 entries) | Quality investment is data-only and incremental | Grow it from real usage; every unknown-but-relevant skill in a posting is a dictionary PR |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
-| No `hunt jobs list/show` | M5 scope | With tracking CLI |
+| ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |
 | Automated PDF rendering not shipped | Headless-browser dependency deferred (ADR-0014) | User prints HTML→PDF; add a PDF adapter behind `RenderPort` when it earns its keep |
-| Generated documents not yet attachable to an application | Application tracking is M5; `documentId`/`applicationId` links already modeled | Wire in M5 with `hunt track` |
+| ~~Generated documents not yet attachable to an application~~ | ~~M4~~ | **Resolved M5**: `hunt track <job-id> --attach <doc-id>` |
+| Distribution not packaged (`npm i -g` / binary) | Packages are `private` with `workspace:*` deps; a real install needs a bundler | Maintainer action; decisions #20 |
 | Lexical claim check is conservative (numbers + dictionary skills) | Deliberate (SDD §17) — mandatory human review covers the rest | Grow the rule set only if real usage surfaces a dangerous miss |
+| Grounding-failure output is a validation error, not career guidance | Surfaced in manual M4 test (2026-07-07): a cover letter for a low-fit job failed after the repair budget because the model kept reaching for a skill (`distributed systems`) the profile lacks. The CLI correctly refuses and lists the violating claim, but a user wants next steps, not a lint message. | When a generation exhausts the repair loop on `unsupported-skill` violations, summarize the missing skills that drove it and suggest the choice ("add it to your profile if you have it, or proceed with a document that doesn't claim it"). CLI-only presentation change; the capability already returns the typed violations. |
 
 ---
 

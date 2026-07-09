@@ -40,3 +40,17 @@ export {
   type ComposeAttempt,
   type GroundedDraft,
 } from "./generation-pipeline.js";
+export {
+  createTrackApplication,
+  type TrackApplicationDeps,
+  type TrackApplicationInput,
+  type TrackApplicationResult,
+  type TrackAction,
+} from "./track-application.js";
+export {
+  createQueryApplications,
+  applicationIdForJob,
+  type QueryDeps,
+  type ApplicationListItem,
+  type JobDetail,
+} from "./query-applications.js";

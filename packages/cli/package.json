@@ -1,6 +1,6 @@
 {
   "name": "@hunt/cli",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Hunt command-line interface.",
   "license": "MIT",
@@ -8,6 +8,9 @@
   "bin": {
     "hunt": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
