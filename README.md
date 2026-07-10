@@ -83,13 +83,20 @@ export HUNT_AI_PROVIDER=ollama       # fully local via Ollama
 
 ## Documentation
 
+**New here (contributor or AI session)? Start with [docs/HANDOFF.md](docs/HANDOFF.md)** —
+it catalogs every document, gives a reading order, and lists the minimal
+"starter pack." Agents: also read [CLAUDE.md](CLAUDE.md) for guardrails and commands.
+
+- [Handoff](docs/HANDOFF.md) — the map of all docs + New Session Starter Pack
 - [User Guide](docs/user-guide.md) — the complete workflow and every command
 - [Data Format](docs/data-format.md) — what lives in `~/.hunt`, and how to leave with your data
 - [Adapter Authoring](docs/adapter-authoring.md) — add a new job source
 - [Software Design Document](docs/architecture/software-design.md) — the architectural source of truth
+- [Platform Strategy](docs/architecture/platform-strategy.md) — the adopted 3–5-yr direction: two entry points (job discovery + JD-in), the capability roadmap ([ADR-0015](docs/architecture/adr/0015-platform-capabilities-and-discovery.md))
+- [Reassessment (2026-07)](docs/implementation/reassessment-2026-07.md) — current-state analysis + redesigned roadmap
 - [ADRs](docs/architecture/adr/) — architectural decision records
-- [Roadmap](docs/implementation/roadmap.md) · [Progress](docs/implementation/progress.md) · [Changelog](docs/implementation/changelog.md)
-- [Contributing](docs/contributing.md) · [Testing](docs/testing.md)
+- [Roadmap](docs/implementation/roadmap.md) · [Progress](docs/implementation/progress.md) · [Changelog](docs/implementation/changelog.md) · [Plans](docs/implementation/plans/)
+- [Contributing](docs/contributing.md) · [Testing](docs/testing.md) · [Engineering Contract](docs/engineering-contract.md)
 
 ## License
 

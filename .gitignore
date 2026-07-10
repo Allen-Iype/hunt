@@ -3,3 +3,36 @@ dist/
 *.tsbuildinfo
 .DS_Store
 coverage/
+
+# Personal data — never commit resumes, real profiles, or Hunt runtime data.
+# (The canonical Hunt home lives at ~/.hunt, outside the repo; these patterns
+#  catch files a user drops in the repo while testing.)
+
+# Resume / CV source documents (any location)
+*.pdf
+*.docx
+*.doc
+*.rtf
+*.odt
+
+# Real profiles: the tracked template is examples/profile.example.yaml (kept via
+# the negation below). Every other profile YAML in the repo is personal.
+*profile*.yaml
+*profile*.yml
+!examples/profile.example.yaml
+
+# Local scratch prompts / notes
+resume-prompt.md
+*-prompt.local.md
+
+# A Hunt data directory if someone points HUNT_HOME inside the repo
+/.hunt/
+**/.hunt/
+
+# Scratch / eval outputs
+/tmp/
+scratch/
+*.local
+
+# Local environment configuration
+.env

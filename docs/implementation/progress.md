@@ -66,7 +66,12 @@ V1 is feature-complete. Remaining before a real release cut are **maintainer act
 3. Distribution: the packages are `private` with `workspace:*` deps; a real `npm i -g` / single-binary build needs a bundler (deliberately deferred — see decisions #20).
 4. Run the full loop in anger on a real job search (the SDD §26 v0.1 exit criterion).
 
-Post-V1 order of attack is unchanged (SDD §27): resume-PDF import, browser extension + Greenhouse/Lever/Ashby adapters, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
+Post-V1 order of attack (SDD §27), with the top item now split into two planned, designed milestones:
+- **M6 — Resume Import (Seed):** `hunt profile from-resume` → proposed `unverified` facts → reviewable `profile.yaml` → existing `hunt profile import` confirms. Text/paste first (zero new deps), PDF/DOCX follow-on.
+- **M7 — Profile Augment:** re-importing an edited `profile.yaml` merges (full-replace done correctly — absence = deletion, `verified` promotes on re-import; no `profile_facts` table) with an added delta summary so deletions aren't silent. **This augment loop was a gap in the original SDD §27** — it named seeding, not the edit-and-re-import loop.
+- Then: browser extension + Greenhouse/Lever/Ashby adapters, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
+
+M6/M7 are designed and approved (see the plan file); implementation awaits explicit go-ahead, M6 first.
 
 **Standing maintainer actions:** items 1–2 above.
 
@@ -79,7 +84,7 @@ Post-V1 order of attack is unchanged (SDD §27): resume-PDF import, browser exte
 | ~~CLI version string duplicated in `run.ts`~~ | ~~Carried from M0~~ | **Resolved M5**: `CLI_VERSION` reads from package.json |
 | `hunt profile show` output minimal | Carried from M1 | Acceptable for v0.1; richer view lands with the web UI |
 | AI quality unvalidated against real models | Carried from M2; prompt locks now force versioning discipline, but behavioral eval needs live calls | Record fixtures + run eval when a key is available |
-| Skill dictionary is deliberately small (~55 entries) | Quality investment is data-only and incremental | Grow it from real usage; every unknown-but-relevant skill in a posting is a dictionary PR |
+| Skill dictionary is deliberately small (57 entries) | Quality investment is data-only and incremental | Grow it from real usage; every unknown-but-relevant skill in a posting is a dictionary PR |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
 | ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |
 | Automated PDF rendering not shipped | Headless-browser dependency deferred (ADR-0014) | User prints HTML→PDF; add a PDF adapter behind `RenderPort` when it earns its keep |
@@ -87,6 +92,12 @@ Post-V1 order of attack is unchanged (SDD §27): resume-PDF import, browser exte
 | Distribution not packaged (`npm i -g` / binary) | Packages are `private` with `workspace:*` deps; a real install needs a bundler | Maintainer action; decisions #20 |
 | Lexical claim check is conservative (numbers + dictionary skills) | Deliberate (SDD §17) — mandatory human review covers the rest | Grow the rule set only if real usage surfaces a dangerous miss |
 | Grounding-failure output is a validation error, not career guidance | Surfaced in manual M4 test (2026-07-07): a cover letter for a low-fit job failed after the repair budget because the model kept reaching for a skill (`distributed systems`) the profile lacks. The CLI correctly refuses and lists the violating claim, but a user wants next steps, not a lint message. | When a generation exhausts the repair loop on `unsupported-skill` violations, summarize the missing skills that drove it and suggest the choice ("add it to your profile if you have it, or proceed with a document that doesn't claim it"). CLI-only presentation change; the capability already returns the typed violations. |
+| No evaluation framework (only prompt-hash locks) | Surfaced in the 2026-07 reassessment. Prompt locks detect prompt *change*, not output *quality*; there is no committed golden-input/expected-output eval set. For an AI product this is the top gap — you cannot safely iterate prompts/models without it. | Build `@hunt/eval` (golden JD/resume inputs → expected extractions + claim-trace pass-rate + fit-score assertions), runnable on prompt/model change. Prioritized in the reassessment roadmap (Phase 1). |
+| Presentation logic trapped in `run.ts` (~630 lines) | View-shaping (renderAnalysis, renderGenerateResult, list/show formatters) is inline in the CLI. A web UI or MCP surface (both roadmapped) will need the same view-models. | Extract a presenter/view-model layer (a future `@hunt/presentation`) before building surface #2 (reassessment Phase 3). |
+| Staged-error shape duplicated across 8 capabilities | The `{ok, stage, message, hint}` result is re-declared per capability and the `Failed (${stage}): ${message}` formatting is re-implemented ~8× in `run.ts`. Consistent by convention but not DRY. | Introduce a shared `CapabilityError` type + a `formatFailure()` CLI helper. |
+| Composer internals duplicated | `renderFacts` and `MAX_CONTEXT_CHARS` copied between `draft-resume` and `draft-cover-letter`. | Extract to a shared module in `@hunt/ai`. |
+| Anthropic provider uses a dated API path | Pins `anthropic-version: 2023-06-01` and relies on prompt-instructed JSON rather than native structured-output/tool-use. Functional (repair loop catches malformed JSON) but dated. | Validate current model IDs; consider the structured-output API to remove a class of repair round-trips. |
+| AI cache key hashes the user string only, not `instructions` | Editing instructions without bumping the task version would reuse a stale cache key. | Compensating control exists (the prompt-lock test forces a version bump on instruction edits); note the coupling if the lock test is ever changed. |
 
 ---
 
