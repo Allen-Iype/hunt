@@ -108,6 +108,27 @@ Your `profile.yaml` is the single source of truth. Edit it, then
 file changes nothing). `hunt profile show` summarizes what's loaded. Fact ids
 are assigned automatically; see [data-format.md](data-format.md#the-profile-yaml).
 
+**Seed it from an existing resume** (so you don't hand-write YAML):
+
+```sh
+hunt profile from-resume resume.txt          # or --file <path>, or - to paste on stdin
+#   → wrote my-profile.yaml (facts marked UNVERIFIED)
+#     review & edit it, then: hunt profile import my-profile.yaml
+hunt profile from-resume resume.txt -o me.yaml  # choose the output path
+```
+
+`from-resume` uses AI to extract structured facts and writes a **reviewable
+`my-profile.yaml`** — it does **not** touch your profile. Every fact comes out
+`verified: false`: AI proposes, you vouch. Review the file, fix anything wrong,
+flip facts to `verified: true` as you confirm them (optional — generation just
+*prefers* verified facts), then `hunt profile import` it like any profile.yaml.
+It won't overwrite an existing `my-profile.yaml` — remove it or pass `-o`. This
+step needs an AI provider (see [AI configuration](#ai-configuration)); the manual YAML path
+always works without one. Dates the resume states loosely (e.g. "Mar 2021",
+"2019") are normalized to full ISO dates you can adjust. **Today it reads plain
+text / paste; PDF and DOCX are coming** — for now, export or copy your resume to
+text first.
+
 ### Discover
 
 Discovery is the "help me find jobs" entry point. You tell Hunt which boards to
@@ -263,6 +284,7 @@ have it, or accept a document that doesn't claim it.
 | Command | Purpose | AI |
 |---------|---------|:--:|
 | `hunt --version` | Print the version | — |
+| `hunt profile from-resume <path> [-o <out>]` | Seed a reviewable profile.yaml from a resume (text/paste) | required |
 | `hunt profile import <path>` | Import/update your profile from YAML | — |
 | `hunt profile show` | Summarize the imported profile | — |
 | `hunt searches add <name> [--board/--lever/--ashby <slug>]... [--role/--skill/--location ...]` | Save a standing job search (mix ATS platforms) | — |

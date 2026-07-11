@@ -105,9 +105,19 @@ documented starting point. Key points:
   explicit `id:` if you want a stable handle (e.g. to reference from a skill's
   `evidenceFactIds`).
 - **Dates are quoted ISO strings** (`"YYYY-MM-DD"`).
+- **`verified:` marks a fact you vouch for.** Facts you author are `verified: true`
+  by default. Facts produced by `hunt profile from-resume` come out
+  `verified: false` — AI proposed them; you confirm by reviewing (and optionally
+  flipping to `true`). Generation *prefers* verified facts; the flag is your trust
+  record, not a gate. (Basics — name/email — carry no `verified` field.)
 - **The profile is the single source of truth for generation.** Only facts
   present here can ever appear in a generated resume or cover letter — this is
   enforced structurally (see [user-guide.md](user-guide.md#grounding)).
+
+You don't have to start from a blank file: `hunt profile from-resume <resume>`
+extracts your resume into a ready-to-edit `my-profile.yaml` (every fact
+`verified: false`), which you review and then `hunt profile import` like any
+other profile.yaml. See [user-guide.md](user-guide.md#profile).
 
 ## Leaving Hunt
 

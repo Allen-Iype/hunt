@@ -10,6 +10,7 @@ import {
   createImportJob,
   createImportOpportunityRef,
   createImportProfile,
+  createImportResume,
   createManageSavedSearch,
   createQueryApplications,
   createTrackApplication,
@@ -34,6 +35,7 @@ export function resolveHuntHome(env: NodeJS.ProcessEnv = process.env): string {
 export interface Container {
   storage: HuntStorage;
   importProfile: ReturnType<typeof createImportProfile>;
+  importResume: ReturnType<typeof createImportResume>;
   getProfile: ReturnType<typeof createGetProfile>;
   importJob: ReturnType<typeof createImportJob>;
   analyzeJob: ReturnType<typeof createAnalyzeJob>;
@@ -66,6 +68,7 @@ export function createContainer(
   return {
     storage,
     importProfile: createImportProfile({ profiles: storage.profiles }),
+    importResume: createImportResume({ resumeExtractor: ai.resumeExtractor }),
     getProfile: createGetProfile({ profiles: storage.profiles }),
     importJob,
     analyzeJob: createAnalyzeJob({

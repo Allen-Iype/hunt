@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ApplicationStatus, GeneratedDocument, IngestJobInput } from "@hunt/core";
@@ -36,6 +36,7 @@ const USAGE = `hunt — a local-first AI career operating system
 
 Usage:
   hunt --version                 Print the Hunt version
+  hunt profile from-resume <path>  Seed a reviewable profile.yaml from an existing resume (needs AI)
   hunt profile import <path>     Import (or update) your profile from a profile.yaml
   hunt profile show              Show a summary of the imported profile
   hunt import <url>              Import a job posting from a URL (LinkedIn or any job page)
@@ -83,7 +84,7 @@ export async function run(
     return { exitCode: command === undefined ? 1 : 0, output: USAGE };
   }
   if (command === "profile") {
-    return runProfile(rest, options);
+    return await runProfile(rest, options);
   }
   if (command === "import") {
     return runImport(rest, options);
@@ -716,9 +717,86 @@ async function runImport(args: readonly string[], options: RunOptions): Promise<
   }
 }
 
-function runProfile(args: readonly string[], options: RunOptions): RunResult {
+/**
+ * `hunt profile from-resume <path> | --file <path> | -` → extract facts (AI) →
+ * write a reviewable my-profile.yaml (every fact unverified). Refuses to clobber
+ * an existing output file; `-o <path>` chooses the destination.
+ */
+async function runProfileFromResume(rest: readonly string[], huntHome: string): Promise<RunResult> {
+  // Read the resume text from a path, --file <path>, or - (stdin paste).
+  const [source, maybeSecond] = rest;
+  let resumeText: string;
+  let sourceRef: string;
+  if (source === "-") {
+    resumeText = readFileSync(0, "utf8");
+    sourceRef = "stdin";
+  } else {
+    const path = source === "--file" ? maybeSecond : source;
+    if (!path || path.startsWith("-")) {
+      return {
+        exitCode: 1,
+        output: "Usage: hunt profile from-resume <path> | --file <path> | -   [-o <out.yaml>]",
+      };
+    }
+    try {
+      resumeText = readFileSync(path, "utf8");
+    } catch (err) {
+      return {
+        exitCode: 1,
+        output: `Cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    sourceRef = path;
+  }
+
+  // Output path: -o <path>, else ./my-profile.yaml. Never clobber.
+  const outFlag = collectFlag(rest, "-o");
+  const outPath = outFlag[0] ?? "my-profile.yaml";
+  if (existsSync(outPath)) {
+    return {
+      exitCode: 1,
+      output: `${outPath} already exists — remove it or choose another with -o <path> (I won't overwrite your file).`,
+    };
+  }
+
+  const container = createContainer(huntHome);
+  try {
+    const result = await container.importResume({ resumeText });
+    if (!result.ok) {
+      return {
+        exitCode: 1,
+        output: `Resume import failed (${result.stage}): ${result.message}` + (result.hint ? `\nHint: ${result.hint}` : ""),
+      };
+    }
+    try {
+      writeFileSync(outPath, result.yaml, { flag: "wx" });
+    } catch (err) {
+      return {
+        exitCode: 1,
+        output: `Could not write ${outPath}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    const s = result.summary;
+    return {
+      exitCode: 0,
+      output:
+        `Wrote ${outPath} from ${sourceRef} — every fact is UNVERIFIED.\n` +
+        `  experience: ${s.experience} (${s.achievements} achievements) · skills: ${s.skills} · ` +
+        `projects: ${s.projects} · education: ${s.education} · certifications: ${s.certifications}\n` +
+        `  review & edit it, then confirm: hunt profile import ${outPath}`,
+    };
+  } finally {
+    container.close();
+  }
+}
+
+async function runProfile(args: readonly string[], options: RunOptions): Promise<RunResult> {
   const [subcommand, ...rest] = args;
   const huntHome = options.huntHome ?? resolveHuntHome();
+
+  if (subcommand === "from-resume") {
+    return runProfileFromResume(rest, huntHome);
+  }
 
   if (subcommand === "import") {
     const path = rest[0];

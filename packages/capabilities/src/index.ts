@@ -4,6 +4,12 @@ export {
   type ImportProfileInput,
   type ImportProfileResult,
 } from "./import-profile.js";
+export {
+  createImportResume,
+  type ImportResumeDeps,
+  type ImportResumeInput,
+  type ImportResumeResult,
+} from "./import-resume.js";
 export { createGetProfile } from "./get-profile.js";
 export {
   createImportJob,

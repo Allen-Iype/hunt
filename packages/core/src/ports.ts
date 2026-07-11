@@ -11,6 +11,7 @@ import type {
 } from "./models/document.js";
 import type { RawEnvelope } from "./models/envelope.js";
 import type { ExtractedJobDraft } from "./models/extracted-job.js";
+import type { ExtractedResumeDraft } from "./models/extracted-resume.js";
 import type { Job } from "./models/job.js";
 import type { JobAnalysis } from "./models/job-analysis.js";
 import type { JobInsights } from "./models/job-insights.js";
@@ -108,6 +109,21 @@ export interface ExtractJobPort {
 
 export type ExtractJobResult =
   | { ok: true; draft: ExtractedJobDraft }
+  | { ok: false; kind: "unavailable" | "provider" | "invalid-output"; message: string };
+
+/**
+ * Domain-shaped AI port (SDD §15, ADR-0013, F11 §4): "extract structured facts
+ * from a resume". Implemented by the AI gateway; consumed by the ImportResume
+ * capability to seed a reviewable profile.yaml. Like ExtractJobPort, this is a
+ * domain task, not an LLM port — and its output is an inert proposal a human
+ * confirms, never a verified fact.
+ */
+export interface ExtractResumePort {
+  extractResume(input: { text: string }): Promise<ExtractResumeResult>;
+}
+
+export type ExtractResumeResult =
+  | { ok: true; draft: ExtractedResumeDraft }
   | { ok: false; kind: "unavailable" | "provider" | "invalid-output"; message: string };
 
 /**

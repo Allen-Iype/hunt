@@ -77,6 +77,48 @@ describe("hunt profile (integration)", () => {
   });
 });
 
+describe("hunt profile from-resume (integration)", () => {
+  const cleanEnv = () => {
+    for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {
+      delete process.env[key];
+    }
+  };
+
+  it("fails fast with clear guidance when no AI provider is configured", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    const resume = join(huntHome, "resume.txt");
+    writeFileSync(resume, "Gokul P S\nSoftware Engineer at Acme, 2021–2024\n");
+    const out = join(huntHome, "my-profile.yaml");
+    const result = await run(["profile", "from-resume", resume, "-o", out], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("(extract)");
+    expect(result.output).toContain("no AI provider");
+    expect(result.output).toContain("ANTHROPIC_API_KEY");
+    // No provider ⇒ nothing written.
+    expect(existsSync(out)).toBe(false);
+  });
+
+  it("refuses to overwrite an existing output file (before touching AI)", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    const resume = join(huntHome, "resume.txt");
+    writeFileSync(resume, "Gokul P S\n");
+    const out = join(huntHome, "exists.yaml");
+    writeFileSync(out, "keep me\n");
+    const result = await run(["profile", "from-resume", resume, "-o", out], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("already exists");
+    expect(readFileSync(out, "utf8")).toBe("keep me\n");
+  });
+
+  it("shows usage when given no source", async () => {
+    const result = await run(["profile", "from-resume"], { huntHome: tempHome() });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Usage: hunt profile from-resume");
+  });
+});
+
 describe("hunt import (integration: no AI configured)", () => {
   const cleanEnv = () => {
     for (const key of ["ANTHROPIC_API_KEY", "HUNT_AI_PROVIDER", "HUNT_AI_MODEL", "HUNT_OLLAMA_URL"]) {

@@ -12,18 +12,19 @@
 | M5 — Tracking & release | ✅ |
 | M8 — Discovery: ATS tier | ✅ |
 | M9 — Discovery ATS fast-follows (Lever + Ashby) | ✅ |
+| M6 — Resume Import (Seed) | ✅ |
 
-**All V1 milestones complete → v0.1.** Post-V1: **M8 (Discovery: ATS tier)** and **M9 (Lever + Ashby fast-follows)** complete — the "help me find jobs" entry point now spans three ATS platforms (ADR-0015, roadmap Phase-1 item 1.1).
+**All V1 milestones complete → v0.1.** Post-V1: **M8 + M9 (Discovery ATS tier)** span three ATS platforms, and **M6 (Resume Import)** removes the biggest onboarding friction — seed a profile from an existing resume. (M6 sequenced after M8/M9 by maintainer choice; both are Phase-1 peers under ADR-0015 / SDD §27.)
 
 ---
 
 ## Current Milestone
 
-**M9 — Discovery ATS fast-follows (Lever + Ashby)** · Status: **complete, awaiting approval** · Completion: 100%
+**M6 — Resume Import (Seed)** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: extend the M8 Discovery ATS tier with Lever and Ashby adapters (ADR-0015 same-tier fast-follows). Both publish public JSON APIs — no auth, structured, **no AI, no profile, no new runtime deps**. Reuses every M8 seam unchanged: the `DiscoveryAdapter` contract + registry, `DiscoveredRef` leads (carrying their own `sourceId`), the lead invariant, `rankOpportunity`, the storage repos, and the `DiscoverJobs`/`ImportOpportunityRef` capabilities. Adapters just register into the registry; `hunt searches add` gains per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable). Tests 288 → 297. Validated live: one search over Lever (`palantir`) + Ashby (`Ramp`) pulled 400 leads (273 + 127), deduped, ranked, persisted per `source_id`; seen-lifecycle skipped stored refs on re-run.
+Objective: seed a profile from an existing resume instead of hand-authoring YAML (SDD §27 #1, F11 §4 — the biggest onboarding friction). `hunt profile from-resume <file>` extracts structured facts via the AI port, writes a reviewable `profile.yaml` with **every fact `verified: false`**, and the existing `hunt profile import` confirms it — AI proposes, a human vouches (SDD §15). **Phase 1: plain text + paste, zero new deps** (PDF/DOCX deferred to Phase 2 behind the same command). New: `ExtractedResumeDraft` model + `ExtractResumePort` (ADR-0013), `EXTRACT_RESUME_TASK` + prompt lock, `ImportResume` capability (with a deterministic resume-date normalizer so output round-trips through the strict `ProfileInputSchema`), the CLI subcommand (refuses to overwrite; `-o` to choose destination). Tests 297 → 313. Validated live: real resume → `gemma4:26b` via Ollama → `my-profile.yaml` (all unverified, dates normalized) → `hunt profile import` → `hunt profile show`, full round-trip.
 
-Previous milestone — **M8 — Discovery: ATS tier** (complete): the first "help me find jobs" entry point over Greenhouse — `hunt searches` + `hunt discover`, `OpportunityRef` leads, intent-first ranking (profile optional), migration 5, three capabilities. No profile / no AI. Validated live against a real Greenhouse board (510 Stripe openings).
+Previous milestone — **M9 — Discovery ATS fast-follows** (complete): Lever + Ashby adapters over public JSON APIs registered into the M8 discovery registry; `hunt searches add` per-source flags. No core/storage/capability change. Validated live (400 leads across two platforms).
 
 ---
 
@@ -58,12 +59,13 @@ Previous milestone — **M8 — Discovery: ATS tier** (complete): the first "hel
 | 2026-07-11 | M8 Storage: migration 5 (`saved_searches`, `opportunity_refs` + seen-lifecycle index) + repositories, wired into `HuntStorage`. | SDD §14 |
 | 2026-07-11 | M8 Capabilities: `DiscoverJobs` (discover→dedup→rank→persist; no AI), `ManageSavedSearch`, `ImportOpportunityRef` (reuses `ImportJob`, marks lead imported). CLI `hunt searches` + `hunt discover`. Tests 263 → 288. Validated live: 510 real Stripe openings, correctly ranked; import + seen-lifecycle verified. | SDD §13; ADR-0015 |
 | 2026-07-12 | M9 Ingestion: **Lever** + **Ashby** discovery adapters (both public JSON, no auth, no AI; HTTP injected for offline fixtures) registered into the discovery registry; shared `teaser` helper (`plainTeaser`/`htmlTeaser`) extracted from Greenhouse. CLI `hunt searches add` generalized to per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable); boards render `adapterId:board`. No core/storage/capability change. Tests 288 → 297. Validated live: Lever `palantir` + Ashby `Ramp` → 400 leads (273+127), deduped, ranked, persisted per `source_id`; seen-lifecycle verified. | ADR-0015; decisions #21, #23 |
+| 2026-07-12 | M6 Resume Import (Seed): core `ExtractedResumeDraft` (no ids/timestamps/verified) + `ExtractResumePort`; AI `EXTRACT_RESUME_TASK` (v1) + `createAiResumeExtractor` + `extract-resume@1` prompt lock; capability `ImportResume` (draft → ProfileInput with `verified:false` on every fact → profile.yaml string; deterministic resume-date normalizer; round-trip guard). CLI `hunt profile from-resume` (writes `my-profile.yaml`, refuses overwrite, `-o` to override; needs-AI guidance). Phase 1 text/paste, **zero new deps**. Tests 297 → 313. Validated live: real resume → `gemma4:26b` (Ollama) → `my-profile.yaml` (all unverified, dates normalized) → import → show, full round-trip. | SDD §27 #1, §15; ADR-0013; decisions #24 |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M9 (Lever + Ashby fast-follows) delivered and validated, stopped per milestone workflow for approval. All V1 milestones complete (v0.1); the discovery ATS tier (M8 + M9) now spans Greenhouse, Lever, and Ashby (ADR-0015 Phase-1).
+Nothing in flight — M6 (Resume Import: Seed) delivered and validated, stopped per milestone workflow for approval. Post-V1 progress: the discovery ATS tier (M8 + M9) spans Greenhouse/Lever/Ashby, and M6 removes the biggest onboarding friction (resume → seeded profile). **M7 (Profile Augment)** is the designed follow-on and still awaits explicit go-ahead.
 
 ---
 
@@ -75,12 +77,11 @@ V1 is feature-complete. Remaining before a real release cut are **maintainer act
 3. Distribution: the packages are `private` with `workspace:*` deps; a real `npm i -g` / single-binary build needs a bundler (deliberately deferred — see decisions #20).
 4. Run the full loop in anger on a real job search (the SDD §26 v0.1 exit criterion).
 
-Post-V1 order of attack (SDD §27), with the top item now split into two planned, designed milestones:
-- **M6 — Resume Import (Seed):** `hunt profile from-resume` → proposed `unverified` facts → reviewable `profile.yaml` → existing `hunt profile import` confirms. Text/paste first (zero new deps), PDF/DOCX follow-on.
-- **M7 — Profile Augment:** re-importing an edited `profile.yaml` merges (full-replace done correctly — absence = deletion, `verified` promotes on re-import; no `profile_facts` table) with an added delta summary so deletions aren't silent. **This augment loop was a gap in the original SDD §27** — it named seeding, not the edit-and-re-import loop.
-- Then: browser extension + Greenhouse/Lever/Ashby adapters, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
-
-M6/M7 are designed and approved (see the plan file); implementation awaits explicit go-ahead.
+Post-V1 order of attack (SDD §27):
+- ✅ **M6 — Resume Import (Seed)** — **done**: `hunt profile from-resume` → proposed `unverified` facts → reviewable `profile.yaml` → existing `hunt profile import` confirms. Phase 1 (text/paste, zero deps) shipped.
+- **M6 Phase 2 — PDF/DOCX resume input** (follow-on behind the same command): add `pdf-parse` + `mammoth` and a bytes+contentType→text step; each dependency justified per SDD §21 when added.
+- **M7 — Profile Augment:** re-importing an edited `profile.yaml` merges (full-replace done correctly — absence = deletion, `verified` promotes on re-import; no `profile_facts` table) with an added delta summary so deletions aren't silent. **This augment loop was a gap in the original SDD §27** — it named seeding, not the edit-and-re-import loop. Designed + approved (see `plans/m7-profile-augment.md`); awaits explicit go-ahead.
+- Then: browser extension, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
 
 **Discovery follow-ups:** ~~Lever and Ashby discovery adapters~~ **done (M9)** — the ATS tier now spans Greenhouse, Lever, and Ashby. Next in discovery: Phase 2 aggregator feeds, then a convenience `hunt discover --all` (run all saved searches at once — a CLI-only add, architecture already supports it). The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
 
@@ -98,6 +99,8 @@ M6/M7 are designed and approved (see the plan file); implementation awaits expli
 | Skill dictionary is deliberately small (57 entries) | Quality investment is data-only and incremental. **M8 raised the stakes:** discovery ranking (`rankOpportunity`) also depends on the dictionary — an unknown skill in a lead's title/snippet won't count toward relevance. | Grow it from real usage; every unknown-but-relevant skill in a posting *or discovered lead* is a dictionary PR |
 | ~~Discovery ATS tier ships Greenhouse only~~ | ~~M8 scope was a Greenhouse-first vertical slice to prove every seam (ADR-0015)~~ | **Resolved M9**: Lever + Ashby adapters added (one adapter + fixture each into the discovery registry). ATS tier now spans three platforms. |
 | `OpportunityRef` lead-vs-job invariant is review-guarded | ADR-0015: a ref must never grow job structure or discovery drifts into aggregation. Enforced by `.strict()` + a test today. | Keep the invariant test green; reject any PR adding job fields to `OpportunityRef` |
+| Resume-seeded basics can't be marked unverified | `ProfileBasicsSchema` has no `verified` field (M6). Basics (name/email) are low-risk and shown in the reviewable YAML, so extraction ships them without an unverified marker. | Add `verified` to basics only if a real need appears; otherwise accept — the user reviews basics before `hunt profile import` |
+| Resume import is text/paste only (no PDF/DOCX) | M6 Phase 1 kept to zero new deps (SDD §21) to prove the AI extraction end-to-end | M6 Phase 2: add `pdf-parse` + `mammoth` behind the same `from-resume` command (isolated bytes→text step); justify each dep when added |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
 | ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |
 | Automated PDF rendering not shipped | Headless-browser dependency deferred (ADR-0014) | User prints HTML→PDF; add a PDF adapter behind `RenderPort` when it earns its keep |

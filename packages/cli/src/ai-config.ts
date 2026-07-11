@@ -4,6 +4,7 @@ import {
   createAiJobExtractor,
   createAiJobInsights,
   createAiResumeComposer,
+  createAiResumeExtractor,
   createAnthropicProvider,
   createFileResponseCache,
   createOllamaProvider,
@@ -13,6 +14,7 @@ import type {
   ComposeCoverLetterPort,
   ComposeResumePort,
   ExtractJobPort,
+  ExtractResumePort,
   JobInsightsPort,
 } from "@hunt/core";
 
@@ -41,6 +43,7 @@ function parseTimeoutMs(raw: string | undefined): number | undefined {
 export type AiSetup =
   | {
       extractor: ExtractJobPort;
+      resumeExtractor: ExtractResumePort;
       insights: JobInsightsPort;
       resumeComposer: ComposeResumePort;
       coverLetterComposer: ComposeCoverLetterPort;
@@ -48,6 +51,7 @@ export type AiSetup =
     }
   | {
       extractor: undefined;
+      resumeExtractor: undefined;
       insights: undefined;
       resumeComposer: undefined;
       coverLetterComposer: undefined;
@@ -58,6 +62,7 @@ export type AiSetup =
 function noAi(configError?: string): AiSetup {
   return {
     extractor: undefined,
+    resumeExtractor: undefined,
     insights: undefined,
     resumeComposer: undefined,
     coverLetterComposer: undefined,
@@ -97,6 +102,7 @@ export function buildAiSetup(huntHome: string, env: NodeJS.ProcessEnv = process.
   const cache = createFileResponseCache(join(huntHome, "cache", "ai"));
   return {
     extractor: createAiJobExtractor({ provider, cache }),
+    resumeExtractor: createAiResumeExtractor({ provider, cache }),
     insights: createAiJobInsights({ provider, cache }),
     resumeComposer: createAiResumeComposer({ provider, cache }),
     coverLetterComposer: createAiCoverLetterComposer({ provider, cache }),

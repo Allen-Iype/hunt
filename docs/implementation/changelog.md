@@ -2,6 +2,32 @@
 
 All notable changes, grouped by milestone.
 
+## M6 — Resume Import (Seed) (2026-07-12)
+
+The biggest onboarding friction removed (SDD §27 #1, F11 §4): seed a profile from an existing resume instead of hand-authoring YAML. `hunt profile from-resume <file>` extracts structured facts via the AI port, writes a reviewable `profile.yaml` with **every fact `verified: false`**, and the existing `hunt profile import` is the confirm step — AI proposes, a human vouches (SDD §15). The manual YAML path is untouched. **Phase 1: plain text + paste only — zero new dependencies.**
+
+### Added
+- **Core**: `ExtractedResumeDraft` (the resume-extractable subset of a Profile — basics + experience/skills/projects/education/certifications; **no fact IDs, no timestamps, and no `verified` field** — extraction never asserts trust; arrays `.default([])`), mirroring `ExtractedJobDraft`. New domain-shaped port `ExtractResumePort` (ADR-0013), alongside `ExtractJobPort`.
+- **AI**: `EXTRACT_RESUME_TASK` (v1, "report only what's stated; never infer") + `createAiResumeExtractor` over the gateway; an `extract-resume@1` prompt-lock entry, added to the prompt-lock regression test.
+- **Capabilities**: `ImportResume({ resumeExtractor })` — resume text → `ExtractedResumeDraft` → shape into `ProfileInput` with **`verified: false` stamped on every fact** → serialize to a `profile.yaml` string with a review header. Staged errors (`input`/`extract`/`shape`). Includes a deterministic resume-date normalizer (`"Mar 2021"`/`"2019"`/`"2021-03"` → ISO `YYYY-MM-DD`; unparseable end dates like `"Present"` → omitted = current position) so the output round-trips through the strict `ProfileInputSchema`. A round-trip guard rejects anything that wouldn't import.
+- **CLI**: `hunt profile from-resume <path> | --file <path> | -` → writes `./my-profile.yaml` (**refuses to overwrite**; `-o <path>` to choose the destination; write uses `wx` so there's no clobber race), prints a fact-count summary and the `hunt profile import` next step. Clear needs-AI guidance when no provider is configured. Wired `resumeExtractor` into `AiSetup`/`noAi()`/`buildAiSetup` and `importResume` into the container (AI-gated).
+- Tests 297 → 313: `ExtractedResumeDraft` schema (accept/reject; carries no id/verified; keeps date strings as written); the capability (stamps `verified:false` everywhere; YAML round-trips through `resolveProfileInput`; date normalization; empty-text and no-AI and extraction-failure paths); the extract-resume prompt lock; CLI no-AI-fails-fast, overwrite-refusal, and usage tests. Validated live: a real resume → `gemma4:26b` via Ollama → generated `my-profile.yaml` (all unverified, dates normalized) → `hunt profile import` → `hunt profile show`, full round-trip.
+
+### Changed
+- Nothing behavioral in existing commands. `hunt profile` dispatch is now async (it awaits the new AI-backed subcommand); `import`/`show` are unchanged in behavior.
+
+### Fixed
+- Nothing (no reported bugs).
+
+### Deferred
+- **PDF (`pdf-parse`) and DOCX (`mammoth`) resume input** — Phase 2, behind the same `hunt profile from-resume` command (the text-extraction step is isolated: bytes+contentType → text, so a format is one parser + a content-type branch; each dependency justified per SDD §21 when added). Also deferred: **M7 — Profile Augment** (re-importing an edited `profile.yaml` merges instead of clobbering, with a delta summary).
+
+### Known limitation
+- `ProfileBasicsSchema` has no `verified` field, so basics (name/email/etc.) can't be marked unverified — accepted for M6 (low-risk; the user sees basics in the reviewable YAML). Noted in docs.
+
+### Breaking Changes
+- None (additive port, task, capability, and CLI subcommand).
+
 ## M9 — Discovery ATS fast-follows: Lever + Ashby (2026-07-12)
 
 Extends the M8 Discovery ATS tier with two more adapters (ADR-0015 same-tier fast-follows). Both publish public JSON APIs — no auth, structured, **no AI, no profile, no new runtime deps**. Reuses every M8 seam unchanged: the `DiscoveryAdapter` contract + registry, `DiscoveredRef` leads (carrying their own `sourceId`), the lead-vs-job invariant, `rankOpportunity`, the storage repos, and the `DiscoverJobs`/`ImportOpportunityRef` capabilities.

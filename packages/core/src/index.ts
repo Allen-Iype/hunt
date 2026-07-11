@@ -1,6 +1,7 @@
 export * from "./models/common.js";
 export * from "./models/envelope.js";
 export * from "./models/extracted-job.js";
+export * from "./models/extracted-resume.js";
 export * from "./models/job-insights.js";
 export * from "./models/job-analysis.js";
 export * from "./models/candidate-fact.js";

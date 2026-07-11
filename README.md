@@ -44,6 +44,8 @@ pnpm hunt --version
 
 ```sh
 cp examples/profile.example.yaml my-profile.yaml   # edit with your real facts
+#   …or seed it from an existing resume (needs AI; writes a reviewable YAML):
+#   hunt profile from-resume resume.txt   → my-profile.yaml (facts unverified)
 hunt profile import my-profile.yaml
 hunt profile show
 
