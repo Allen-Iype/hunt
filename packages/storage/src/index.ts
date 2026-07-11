@@ -6,8 +6,10 @@ import type {
   EnvelopeRepository,
   JobAnalysisRepository,
   JobRepository,
+  OpportunityRefRepository,
   ProfileRepository,
   RawVault,
+  SavedSearchRepository,
 } from "@hunt/core";
 import { backupStorage, type BackupResult } from "./backup.js";
 import { openDatabase } from "./db.js";
@@ -17,7 +19,9 @@ import { createJobAnalysisRepository } from "./repositories/analyses.js";
 import { createCompanyRepository } from "./repositories/companies.js";
 import { createDocumentRepository } from "./repositories/documents.js";
 import { createJobRepository } from "./repositories/jobs.js";
+import { createOpportunityRefRepository } from "./repositories/opportunity-refs.js";
 import { createProfileRepository } from "./repositories/profiles.js";
+import { createSavedSearchRepository } from "./repositories/saved-searches.js";
 import { createFileVault } from "./vault.js";
 
 export { DB_FILENAME, openDatabase } from "./db.js";
@@ -30,6 +34,8 @@ export { createApplicationRepository, InvalidEventError } from "./repositories/a
 export { createEnvelopeRepository } from "./repositories/envelopes.js";
 export { createJobAnalysisRepository } from "./repositories/analyses.js";
 export { createDocumentRepository } from "./repositories/documents.js";
+export { createOpportunityRefRepository } from "./repositories/opportunity-refs.js";
+export { createSavedSearchRepository } from "./repositories/saved-searches.js";
 export { BackupError, type BackupResult } from "./backup.js";
 
 export interface HuntStorage {
@@ -40,6 +46,8 @@ export interface HuntStorage {
   envelopes: EnvelopeRepository;
   analyses: JobAnalysisRepository;
   documents: DocumentRepository;
+  savedSearches: SavedSearchRepository;
+  opportunityRefs: OpportunityRefRepository;
   vault: RawVault;
   /** Snapshot the DB (VACUUM INTO) + vault + documents into `destDir` (SDD §14). */
   backup(destDir: string): BackupResult;
@@ -57,6 +65,8 @@ export function openStorage(rootDir: string): HuntStorage {
     envelopes: createEnvelopeRepository(db),
     analyses: createJobAnalysisRepository(db),
     documents: createDocumentRepository(db),
+    savedSearches: createSavedSearchRepository(db),
+    opportunityRefs: createOpportunityRefRepository(db),
     vault: createFileVault(rootDir),
     backup: (destDir: string) => backupStorage(db, rootDir, destDir),
     close: () => db.close(),

@@ -54,3 +54,17 @@ export {
   type ApplicationListItem,
   type JobDetail,
 } from "./query-applications.js";
+export {
+  createDiscoverJobs,
+  createImportOpportunityRef,
+  type DiscoverJobsDeps,
+  type DiscoverJobsResult,
+  type ImportOpportunityRefDeps,
+  type ImportOpportunityRefResult,
+} from "./discover-jobs.js";
+export {
+  createManageSavedSearch,
+  type ManageSavedSearchDeps,
+  type AddSavedSearchInput,
+  type AddSavedSearchResult,
+} from "./manage-saved-search.js";

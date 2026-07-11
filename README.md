@@ -2,7 +2,7 @@
 
 **A Local-First AI Career Operating System.**
 
-Hunt helps software engineers run their entire job search — importing and analyzing jobs, generating grounded resumes and cover letters, and tracking applications — with all data on your machine and AI as a replaceable enhancement, never the source of truth.
+Hunt helps software engineers run their entire job search — **finding** relevant openings, importing and analyzing jobs, generating grounded resumes and cover letters, and tracking applications — with all data on your machine and AI as a replaceable enhancement, never the source of truth. You can start either way: *"help me find jobs"* (discovery) or *"I already have this job description."*
 
 > **Status: pre-alpha.** Milestones M0–M3 complete: canonical models, SQLite storage with a content-addressed raw vault, profile management, job import with tiered extraction, and job analysis — deterministic skill matching and fit scoring, with optional AI-classified requirements, red flags, and gap narratives. Resume generation arrives with M4.
 
@@ -47,7 +47,11 @@ cp examples/profile.example.yaml my-profile.yaml   # edit with your real facts
 hunt profile import my-profile.yaml
 hunt profile show
 
-hunt import https://www.linkedin.com/jobs/view/…   # or any job page URL
+hunt searches add "backend remote" --board stripe --role engineer --skill go
+hunt discover <search-id>                          # find + rank openings (no profile/AI needed)
+hunt discover --import <opp-id>                     # pull a discovered lead in as a job
+
+hunt import https://www.linkedin.com/jobs/view/…   # or import a specific posting by URL
 hunt import -                                      # paste a posting, Ctrl-D (works for every site)
 hunt import --file saved-posting.html
 

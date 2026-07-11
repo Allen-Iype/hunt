@@ -3,15 +3,19 @@ import { join } from "node:path";
 import {
   createAnalyzeJob,
   createApproveDocument,
+  createDiscoverJobs,
   createGenerateCoverLetter,
   createGenerateResume,
   createGetProfile,
   createImportJob,
+  createImportOpportunityRef,
   createImportProfile,
+  createManageSavedSearch,
   createQueryApplications,
   createTrackApplication,
 } from "@hunt/capabilities";
-import { createJobIngestor } from "@hunt/ingestion";
+import { DEFAULT_PROFILE_ID } from "@hunt/core";
+import { createDiscoverer, createJobIngestor } from "@hunt/ingestion";
 import { createHtmlRenderer } from "@hunt/render";
 import { openStorage, type HuntStorage } from "@hunt/storage";
 import { buildAiSetup } from "./ai-config.js";
@@ -38,6 +42,9 @@ export interface Container {
   approveDocument: ReturnType<typeof createApproveDocument>;
   trackApplication: ReturnType<typeof createTrackApplication>;
   queries: ReturnType<typeof createQueryApplications>;
+  discoverJobs: ReturnType<typeof createDiscoverJobs>;
+  importOpportunityRef: ReturnType<typeof createImportOpportunityRef>;
+  savedSearches: ReturnType<typeof createManageSavedSearch>;
   aiConfigError?: string;
   close(): void;
 }
@@ -54,11 +61,13 @@ export function createContainer(
     envelopes: storage.envelopes,
     extractJob: ai.extractor,
   });
+  const discoverer = createDiscoverer();
+  const importJob = createImportJob({ ingestor, jobs: storage.jobs, companies: storage.companies });
   return {
     storage,
     importProfile: createImportProfile({ profiles: storage.profiles }),
     getProfile: createGetProfile({ profiles: storage.profiles }),
-    importJob: createImportJob({ ingestor, jobs: storage.jobs, companies: storage.companies }),
+    importJob,
     analyzeJob: createAnalyzeJob({
       jobs: storage.jobs,
       profiles: storage.profiles,
@@ -92,6 +101,19 @@ export function createContainer(
       analyses: storage.analyses,
       documents: storage.documents,
     }),
+    discoverJobs: createDiscoverJobs({
+      discovery: discoverer,
+      savedSearches: storage.savedSearches,
+      opportunityRefs: storage.opportunityRefs,
+      jobs: storage.jobs,
+      profiles: storage.profiles,
+      profileId: DEFAULT_PROFILE_ID,
+    }),
+    importOpportunityRef: createImportOpportunityRef({
+      opportunityRefs: storage.opportunityRefs,
+      importJob,
+    }),
+    savedSearches: createManageSavedSearch({ savedSearches: storage.savedSearches }),
     ...("configError" in ai && ai.configError ? { aiConfigError: ai.configError } : {}),
     close: () => storage.close(),
   };

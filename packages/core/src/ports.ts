@@ -14,7 +14,9 @@ import type { ExtractedJobDraft } from "./models/extracted-job.js";
 import type { Job } from "./models/job.js";
 import type { JobAnalysis } from "./models/job-analysis.js";
 import type { JobInsights } from "./models/job-insights.js";
+import type { OpportunityRef } from "./models/opportunity-ref.js";
 import type { Profile } from "./models/profile.js";
+import type { DiscoverySource, SavedSearch, SearchQuery } from "./models/saved-search.js";
 
 /**
  * Storage ports (SDD §6, §7, §14). Defined by the core, implemented by
@@ -215,4 +217,59 @@ export interface DocumentRepository {
   listForJob(jobId: Id): GeneratedDocument[];
   /** Latest document of a kind for a job (most recent createdAt). */
   getLatestForJob(jobId: Id, kind: DocumentKind): GeneratedDocument | null;
+}
+
+/**
+ * A discovered lead as produced by a discovery source, BEFORE it becomes a
+ * persisted `OpportunityRef` (id, queryId, status, and relevance are assigned
+ * by the capability layer). Carries only lead data — never job structure
+ * (ADR-0015 invariant).
+ */
+export interface DiscoveredRef {
+  /** Discovery adapter that produced this lead, e.g. "greenhouse". */
+  sourceId: string;
+  url: string;
+  title: string;
+  companyName?: string;
+  location?: string;
+  snippet?: string;
+}
+
+/**
+ * Domain-shaped discovery port (SDD §9, ADR-0015). Given a structured query,
+ * produce many leads — the INVERSE shape of `JobIngestor`/`SourceAdapter`
+ * (which fetch and normalize ONE known reference). Async by nature (network
+ * I/O), unlike the synchronous storage ports. Its output feeds the existing
+ * import pipeline unchanged; discovery never normalizes.
+ */
+export interface DiscoveryPort {
+  discover(input: {
+    sources: readonly DiscoverySource[];
+    query: SearchQuery;
+  }): Promise<DiscoveryResult>;
+}
+
+export type DiscoveryResult =
+  | { ok: true; refs: DiscoveredRef[] }
+  | { ok: false; stage: "fetch" | "parse"; message: string; hint?: string };
+
+/**
+ * Repository for discovered leads (ADR-0015). Refs carry a seen/dismissed
+ * lifecycle so re-running a search does not resurface handled leads.
+ */
+export interface OpportunityRefRepository {
+  /** Insert or replace by id. */
+  save(ref: OpportunityRef): void;
+  getById(id: Id): OpportunityRef | null;
+  findByUrl(url: string): OpportunityRef | null;
+  /** New (undismissed, unimported) refs for a search, most relevant first. */
+  listForSearch(queryId: Id): OpportunityRef[];
+  markStatus(id: Id, status: OpportunityRef["status"]): void;
+}
+
+export interface SavedSearchRepository {
+  save(search: SavedSearch): void;
+  getById(id: Id): SavedSearch | null;
+  list(): SavedSearch[];
+  delete(id: Id): void;
 }

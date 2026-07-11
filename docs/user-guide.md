@@ -21,16 +21,32 @@ pnpm install && pnpm build
 Your data lives in `~/.hunt` (override with `HUNT_HOME`). See
 [data-format.md](data-format.md) for the exact layout.
 
+## Two ways to start
+
+Hunt has two equally native starting points:
+
+- **"Help me find jobs."** — set up a search and let Hunt discover openings for you
+  (see [Discover](#discover)). Works with no profile and no AI.
+- **"I already have a job description."** — import a posting you found and analyze
+  it against your profile (the quick start below).
+
+Both flow into the same core — fit scoring and grounded generation.
+
 ## Quick start
 
-The complete V1 loop, in order:
+The complete loop, in order (you can start at step 2 with discovery instead):
 
 ```sh
 # 1. Author your profile (the source of truth for everything Hunt generates)
 cp examples/profile.example.yaml my-profile.yaml     # then edit with your real facts
 hunt profile import my-profile.yaml
 
-# 2. Import a job posting
+# 2a. Find jobs (no profile or AI needed) — or skip to 2b if you already have a posting
+hunt searches add "backend remote" --board stripe --role engineer --skill go
+hunt discover <search-id>                               # ranked openings from the board
+hunt discover --import <opp-id>                          # pull one in as a job
+
+# 2b. Or import a specific posting you already have
 hunt import https://boards.greenhouse.io/acme/jobs/123   # a URL, or:
 hunt import -                                            # paste the posting, then Ctrl-D
 hunt import --file saved-posting.html                    # a saved file
@@ -91,6 +107,42 @@ Your `profile.yaml` is the single source of truth. Edit it, then
 `hunt profile import <path>` to load it (idempotent — re-importing an unchanged
 file changes nothing). `hunt profile show` summarizes what's loaded. Fact ids
 are assigned automatically; see [data-format.md](data-format.md#the-profile-yaml).
+
+### Discover
+
+Discovery is the "help me find jobs" entry point. You tell Hunt which boards to
+watch and what you're looking for; it fetches the openings and ranks them to your
+intent — **with no profile and no AI needed** (ATS boards publish structured data).
+
+```sh
+# Save a standing search: which boards to watch + your intent.
+hunt searches add "senior backend, remote" \
+  --board stripe --board figma \        # Greenhouse board slugs (repeatable)
+  --role "backend engineer" \           # role keywords (repeatable)
+  --skill go --skill kubernetes \       # skills you want (repeatable)
+  --location remote                     # locations (repeatable)
+
+hunt searches list                      # your saved searches (with ids)
+hunt discover <search-id>               # find + rank openings now
+hunt discover --import <opp-id>         # pull a chosen lead in as a job
+hunt searches remove <search-id>        # delete a search
+```
+
+`hunt discover` returns **leads**, ranked most-relevant-first, each with an id. A
+lead is just a pointer to a posting — Hunt does not store the full job until you
+import it. Ranking uses your search intent; if you have a profile, it's used as an
+extra signal, but it's never required. Re-running a search won't resurface leads
+you've already imported.
+
+**What "boards" means:** Hunt's first discovery source is
+[Greenhouse](https://www.greenhouse.io/) — a `--board` value is the company's
+Greenhouse board slug (e.g. `stripe` for `boards.greenhouse.io/stripe`). More
+sources (Lever, Ashby, aggregator feeds) are coming. Hunt is **not** a job board:
+it fetches, on-demand, only what you asked for, into your local store.
+
+To act on a lead: `hunt discover --import <opp-id>` runs it through the normal
+import pipeline (so a prose-only posting may need an AI provider, exactly like
+`hunt import`), then you `analyze`, `resume`, `letter`, and `track` as usual.
 
 ### Import
 
@@ -203,6 +255,11 @@ have it, or accept a document that doesn't claim it.
 | `hunt --version` | Print the version | — |
 | `hunt profile import <path>` | Import/update your profile from YAML | — |
 | `hunt profile show` | Summarize the imported profile | — |
+| `hunt searches add <name> --board <slug> [--role/--skill/--location ...]` | Save a standing job search | — |
+| `hunt searches list` | List saved searches | — |
+| `hunt searches remove <id>` | Delete a saved search | — |
+| `hunt discover <search-id>` | Find + rank openings from the search's boards | — |
+| `hunt discover --import <opp-id>` | Import a discovered lead into a job | if unstructured |
 | `hunt import <url>` | Import a job from a URL | if unstructured |
 | `hunt import --file <path>` | Import a job from a saved file | if unstructured |
 | `hunt import -` | Import a job pasted on stdin | if unstructured |

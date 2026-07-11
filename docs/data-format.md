@@ -53,6 +53,13 @@ Tables:
 | `raw_envelopes` | Index of raw ingested payloads; the bytes are in `vault/raw/` |
 | `job_analyses` | Derived analyses, versioned against (job, profile, analyzer) |
 | `documents` | Generated resumes & cover letters; `status` is `draft` or `approved` |
+| `saved_searches` | Standing job searches (`hunt searches`): which boards to watch + your intent (roles/skills/locations) |
+| `opportunity_refs` | Discovered **leads** (`hunt discover`) — a pointer to a posting (source, url, title, snippet, relevance), never the full job; `status` is `new`, `imported`, or `dismissed` |
+
+A row in `opportunity_refs` is a *lead*, not a job: it holds only what's needed to
+identify and rank a posting. Nothing there contains a normalized job (requirements,
+compensation, description) — that's created only when you `hunt discover --import`
+a lead, which runs the normal import pipeline and writes a `jobs` row.
 
 **Applications are event-sourced** (the only aggregate that is): the
 `application_events` log is authoritative and `applications.status` is a

@@ -53,6 +53,13 @@ Usage:
   hunt show <job-id|app-id>      Show a job: analysis, documents, and application timeline
   hunt backup [<dir>]            Snapshot ~/.hunt (database + vault + documents) to a directory
 
+  hunt searches add <name> --board <gh-slug> [--role <r>]... [--skill <s>]... [--location <l>]...
+                                 Save a standing search (which boards to watch + your intent)
+  hunt searches list             List saved searches
+  hunt searches remove <id>      Delete a saved search
+  hunt discover <search-id>      Find jobs from the search's boards, ranked to your intent
+  hunt discover --import <opp-id>  Import a discovered lead into a job (then analyze/generate)
+
 Application statuses: discovered · interested · preparing · applied · screen · tech ·
   onsite · offer_pending · offer · accepted · declined · rejected · withdrawn · ghosted
 
@@ -103,6 +110,12 @@ export async function run(
   }
   if (command === "backup") {
     return runBackup(rest, options);
+  }
+  if (command === "searches") {
+    return runSearches(rest, options);
+  }
+  if (command === "discover") {
+    return runDiscover(rest, options);
   }
   return { exitCode: 1, output: `Unknown command: ${command}\n\n${USAGE}` };
 }
@@ -500,6 +513,127 @@ function runBackup(args: readonly string[], options: RunOptions): RunResult {
   } finally {
     container.close();
   }
+}
+
+/** Collect all values passed for a repeatable flag (e.g. --skill go --skill rust). */
+function collectFlag(args: readonly string[], flag: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length - 1; i++) {
+    if (args[i] === flag) out.push(args[i + 1]!);
+  }
+  return out;
+}
+
+function runSearches(args: readonly string[], options: RunOptions): RunResult {
+  const [sub, ...rest] = args;
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    if (sub === "add") {
+      const name = rest[0];
+      if (!name || name.startsWith("-")) {
+        return { exitCode: 1, output: 'Usage: hunt searches add <name> --board <gh-slug> [--role <r>]... [--skill <s>]... [--location <l>]...' };
+      }
+      const boards = collectFlag(rest, "--board");
+      if (boards.length === 0) {
+        return { exitCode: 1, output: "A search needs at least one --board (a Greenhouse board slug, e.g. --board stripe)" };
+      }
+      const result = container.savedSearches.add({
+        name,
+        query: {
+          roles: collectFlag(rest, "--role"),
+          skills: collectFlag(rest, "--skill"),
+          locations: collectFlag(rest, "--location"),
+        },
+        sources: boards.map((board) => ({ adapterId: "greenhouse", board })),
+      });
+      if (!result.ok) return { exitCode: 1, output: `Could not save search: ${result.message}` };
+      const s = result.search;
+      return {
+        exitCode: 0,
+        output: `Saved search "${s.name}" (${s.id})\n  boards: ${s.sources.map((x) => x.board).join(", ")}\n  discover with: hunt discover ${s.id}`,
+      };
+    }
+    if (sub === "list") {
+      const searches = container.savedSearches.list();
+      if (searches.length === 0) return { exitCode: 0, output: "No saved searches. Add one: hunt searches add <name> --board <gh-slug>" };
+      return {
+        exitCode: 0,
+        output: searches
+          .map((s) => `${s.id}  ${s.name}  [boards: ${s.sources.map((x) => x.board).join(", ")}]`)
+          .join("\n"),
+      };
+    }
+    if (sub === "remove") {
+      const id = rest[0];
+      if (!id) return { exitCode: 1, output: "Usage: hunt searches remove <search-id>" };
+      container.savedSearches.remove(id);
+      return { exitCode: 0, output: `Removed search ${id}` };
+    }
+    return { exitCode: 1, output: "Usage: hunt searches <add|list|remove> ..." };
+  } finally {
+    container.close();
+  }
+}
+
+async function runDiscover(args: readonly string[], options: RunOptions): Promise<RunResult> {
+  const container = createContainer(options.huntHome ?? resolveHuntHome());
+  try {
+    // hunt discover --import <opp-id>
+    if (args[0] === "--import") {
+      const oppId = args[1];
+      if (!oppId) return { exitCode: 1, output: "Usage: hunt discover --import <opp-id>" };
+      const result = await container.importOpportunityRef(oppId);
+      if (!result.ok) {
+        return {
+          exitCode: 1,
+          output: `Import failed (${result.stage}): ${result.message}` + (result.hint ? `\nHint: ${result.hint}` : ""),
+        };
+      }
+      return {
+        exitCode: 0,
+        output: `Imported ${result.job.title} @ ${result.job.companyName} (${result.dedup})\n  job id: ${result.job.id}\n  next: hunt analyze ${result.job.id}`,
+      };
+    }
+
+    const searchId = args[0];
+    if (!searchId) {
+      return { exitCode: 1, output: "Usage: hunt discover <search-id>   (list searches with: hunt searches list)" };
+    }
+    const result = await container.discoverJobs(searchId);
+    if (!result.ok) {
+      return {
+        exitCode: 1,
+        output: `Discovery failed (${result.stage}): ${result.message}` + (result.hint ? `\nHint: ${result.hint}` : ""),
+      };
+    }
+    return { exitCode: 0, output: renderDiscovery(result) };
+  } finally {
+    container.close();
+  }
+}
+
+function renderDiscovery(result: {
+  search: import("@hunt/core").SavedSearch;
+  refs: import("@hunt/core").OpportunityRef[];
+  skipped: number;
+  usedProfile: boolean;
+}): string {
+  const { search, refs, skipped, usedProfile } = result;
+  if (refs.length === 0) {
+    return `No new opportunities for "${search.name}"${skipped > 0 ? ` (${skipped} already seen)` : ""}.`;
+  }
+  const lines = [
+    `${refs.length} new opportunit${refs.length === 1 ? "y" : "ies"} for "${search.name}"` +
+      `${skipped > 0 ? `, ${skipped} already seen` : ""} — ranked to your intent${usedProfile ? " + profile" : ""}:`,
+  ];
+  for (const r of refs) {
+    const rel = `${Math.round(r.relevance * 100)}%`;
+    lines.push(
+      `  [${rel}] ${r.title}${r.companyName ? ` @ ${r.companyName}` : ""}${r.location ? ` · ${r.location}` : ""}`,
+      `        ${r.id} · import: hunt discover --import ${r.id}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 async function runImport(args: readonly string[], options: RunOptions): Promise<RunResult> {

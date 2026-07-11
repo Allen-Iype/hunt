@@ -50,6 +50,19 @@ function aliasPhrases() {
   return phrases;
 }
 
+/**
+ * Fraction of `have` skills that appear in the `want` set, canonicalized on
+ * both sides (0 when `have` is empty). The shared overlap primitive underneath
+ * both fit scoring (jobs) and opportunity ranking (leads) — ADR-0015 decision
+ * #5: one matching engine, two altitudes, never a parallel scorer.
+ */
+export function skillOverlap(have: readonly string[], want: ReadonlySet<string>): number {
+  const canon = new Set(have.map(canonicalizeSkill));
+  if (canon.size === 0) return 0;
+  const hits = [...canon].filter((s) => want.has(s)).length;
+  return hits / canon.size;
+}
+
 export interface SkillMatch {
   matched: { name: string; profileSkillId: string }[];
   missing: string[];

@@ -10,16 +10,19 @@
 | M3 — Analysis | ✅ |
 | M4 — Generation | ✅ |
 | M5 — Tracking & release | ✅ |
+| M8 — Discovery: ATS tier | ✅ |
 
-**All V1 milestones complete → v0.1.**
+**All V1 milestones complete → v0.1.** Post-V1: **M8 (Discovery: ATS tier)** complete — the first "help me find jobs" entry point (ADR-0015, roadmap Phase-1 item 1.1).
 
 ---
 
 ## Current Milestone
 
-**M5 — Tracking & release** · Status: **complete, awaiting approval** · Completion: 100%
+**M8 — Discovery: ATS tier** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: complete the V1 loop and ship v0.1 — `hunt track/list/show/backup` over the existing state machine + event log, attach generated documents to applications, and the release documentation (user guide, data format, adapter authoring). No core changes: M5 is a capability + CLI layer over M1's primitives.
+Objective: ship the first "help me find jobs" entry point (ADR-0015, roadmap Phase-1 item 1.1). `hunt discover` runs a `SavedSearch` against ATS boards (Greenhouse first), pulls published openings into the local store as `OpportunityRef` **leads**, ranks them deterministically by stated intent (profile optional), and lets the user import chosen leads through the existing `ImportJob` pipeline. **No profile and no AI required** — the ATS tier is structured JSON. Discovery emits refs, never jobs (the lead invariant is enforced by `.strict()` and tested). Validated live against a real Greenhouse board (510 Stripe openings, correctly ranked).
+
+Previous milestone — **M5 — Tracking & release** (complete → v0.1): `hunt track/list/show/backup` over the M1 state machine + event log; release docs. No core changes.
 
 ---
 
@@ -49,12 +52,16 @@ Objective: complete the V1 loop and ship v0.1 — `hunt track/list/show/backup` 
 | 2026-07-09 | M5 Storage: `backup` (VACUUM INTO snapshot + vault/documents copy + integrity check) on `HuntStorage`. | SDD §14 |
 | 2026-07-09 | M5 CLI: `hunt track/list/show/backup`; `CLI_VERSION` now read from package.json (M0 debt cleared); version → 0.1.0. Full V1-loop E2E (import→analyze→resume→approve→track→attach→show). Tests 243 → 263. | SDD §20, §26 |
 | 2026-07-09 | Release docs: `docs/user-guide.md`, `docs/data-format.md`, `docs/adapter-authoring.md`; README updated. | SDD §26 |
+| 2026-07-11 | M8 Core: `OpportunityRef` (lead-only, `.strict()`-enforced invariant) + `SavedSearch` models with deterministic ids; `rankOpportunity` (intent-first, profile-optional); shared `skillOverlap` primitive; `DiscoveryPort` (async) + `OpportunityRefRepository` + `SavedSearchRepository` ports. | ADR-0015; decisions #22 |
+| 2026-07-11 | M8 Ingestion: `DiscoveryAdapter` contract (produce-many), Greenhouse adapter over the public board API (no AI; HTTP injected for fixtures), discovery registry (separate from `SOURCE_ADAPTERS`), `createDiscoverer`, `fetchJson`. | ADR-0015; decisions #21 |
+| 2026-07-11 | M8 Storage: migration 5 (`saved_searches`, `opportunity_refs` + seen-lifecycle index) + repositories, wired into `HuntStorage`. | SDD §14 |
+| 2026-07-11 | M8 Capabilities: `DiscoverJobs` (discover→dedup→rank→persist; no AI), `ManageSavedSearch`, `ImportOpportunityRef` (reuses `ImportJob`, marks lead imported). CLI `hunt searches` + `hunt discover`. Tests 263 → 288. Validated live: 510 real Stripe openings, correctly ranked; import + seen-lifecycle verified. | SDD §13; ADR-0015 |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M5 delivered, all V1 milestones complete (v0.1), stopped per milestone workflow.
+Nothing in flight — M8 (Discovery: ATS tier) delivered and validated, stopped per milestone workflow for approval. All V1 milestones complete (v0.1); M8 is the first post-V1 milestone (ADR-0015 Phase-1).
 
 ---
 
@@ -71,7 +78,9 @@ Post-V1 order of attack (SDD §27), with the top item now split into two planned
 - **M7 — Profile Augment:** re-importing an edited `profile.yaml` merges (full-replace done correctly — absence = deletion, `verified` promotes on re-import; no `profile_facts` table) with an added delta summary so deletions aren't silent. **This augment loop was a gap in the original SDD §27** — it named seeding, not the edit-and-re-import loop.
 - Then: browser extension + Greenhouse/Lever/Ashby adapters, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
 
-M6/M7 are designed and approved (see the plan file); implementation awaits explicit go-ahead, M6 first.
+M6/M7 are designed and approved (see the plan file); implementation awaits explicit go-ahead.
+
+**Post-M8 discovery follow-ups (same ATS tier, fast follows):** Lever and Ashby discovery adapters (both publish JSON — one adapter file + fixture each, slotting into the discovery registry). Then Phase 2: aggregator feeds. The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
 
 **Standing maintainer actions:** items 1–2 above.
 
@@ -84,7 +93,9 @@ M6/M7 are designed and approved (see the plan file); implementation awaits expli
 | ~~CLI version string duplicated in `run.ts`~~ | ~~Carried from M0~~ | **Resolved M5**: `CLI_VERSION` reads from package.json |
 | `hunt profile show` output minimal | Carried from M1 | Acceptable for v0.1; richer view lands with the web UI |
 | AI quality unvalidated against real models | Carried from M2; prompt locks now force versioning discipline, but behavioral eval needs live calls | Record fixtures + run eval when a key is available |
-| Skill dictionary is deliberately small (57 entries) | Quality investment is data-only and incremental | Grow it from real usage; every unknown-but-relevant skill in a posting is a dictionary PR |
+| Skill dictionary is deliberately small (57 entries) | Quality investment is data-only and incremental. **M8 raised the stakes:** discovery ranking (`rankOpportunity`) also depends on the dictionary — an unknown skill in a lead's title/snippet won't count toward relevance. | Grow it from real usage; every unknown-but-relevant skill in a posting *or discovered lead* is a dictionary PR |
+| Discovery ATS tier ships Greenhouse only | M8 scope was a Greenhouse-first vertical slice to prove every seam (ADR-0015) | Lever + Ashby adapters are fast follows — one adapter + fixture each into the discovery registry (decisions #21) |
+| `OpportunityRef` lead-vs-job invariant is review-guarded | ADR-0015: a ref must never grow job structure or discovery drifts into aggregation. Enforced by `.strict()` + a test today. | Keep the invariant test green; reject any PR adding job fields to `OpportunityRef` |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
 | ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |
 | Automated PDF rendering not shipped | Headless-browser dependency deferred (ADR-0014) | User prints HTML→PDF; add a PDF adapter behind `RenderPort` when it earns its keep |

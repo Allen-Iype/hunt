@@ -33,3 +33,32 @@ export async function fetchPage(url: string, timeoutMs = 20_000): Promise<string
   }
   return response.text();
 }
+
+/**
+ * Honest JSON fetch for discovery adapters hitting public board APIs
+ * (ADR-0015). Same identified user-agent; JSON accept header; typed error on
+ * transport or parse failure.
+ */
+export async function fetchJson<T = unknown>(url: string, timeoutMs = 20_000): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { "user-agent": HUNT_USER_AGENT, accept: "application/json" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new FetchError(
+      `could not fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+      "check the board handle and your network",
+    );
+  }
+  if (!response.ok) {
+    throw new FetchError(`${url} responded with HTTP ${response.status}`, "check the board handle");
+  }
+  try {
+    return (await response.json()) as T;
+  } catch (err) {
+    throw new FetchError(`${url} did not return valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}

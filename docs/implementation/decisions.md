@@ -163,3 +163,21 @@ Deviations from, or refinements of, the SDD made during implementation. Architec
 - **Alternatives considered**: bundle now with tsup (real work + config churn for a decision better made deliberately); publish all packages to npm (premature for a pre-1.0 single-app monorepo).
 - **Impact**: "run the loop in anger" (SDD §26 exit) works from source today; a maintainer picks the distribution mechanism when there are users to install for.
 - **Affected SDD section**: §26.
+
+## 21. Discovery adapter registry is separate from the source-adapter registry
+
+- **Date**: 2026-07-11 (M8)
+- **Decision**: discovery adapters (`DiscoveryAdapter`, produce-many) live in their own registry (`buildDiscoveryRegistry`), distinct from `SOURCE_ADAPTERS` (`SourceAdapter`, fetch-and-normalize one URL). The `DiscoveryPort` is async; the discoverer fans out over a search's sources and dedups leads by URL.
+- **Reason**: the two contracts have inverse shapes (ADR-0015): a source adapter turns one known reference into a canonical Job; a discovery adapter turns a query into many leads. Mixing them in one registry would conflate the contracts and tempt `switch`-on-shape logic. Kept a separate ADR unnecessary — ADR-0015 already governs the discovery layer; this is the implementation-level placement call.
+- **Alternatives considered**: one unified adapter interface with optional `discover`/`fetchUrl` methods (rejected — fattens both contracts, blurs the produce-many vs. fetch-one distinction); putting discovery adapters in a new package (rejected — they belong with ingestion, sharing `fetchJson`/`FetchError`).
+- **Impact**: adding a discovery source (Lever/Ashby) touches only the discovery registry; the source-adapter path is untouched.
+- **Affected SDD section**: §8, §9; ADR-0015.
+
+## 22. One shared `skillOverlap` primitive under both scoring and ranking
+
+- **Date**: 2026-07-11 (M8)
+- **Decision**: opportunity ranking (`rankOpportunity`, leads) and fit scoring (`computeFitScore`, jobs) sit on one shared `skillOverlap(have, want)` helper in `@hunt/core`'s matching module — not two independent skill-comparison implementations.
+- **Reason**: ADR-0015 decision #5 — reuse the trust core's matching engine, never fork a parallel scorer. `rankOpportunity` operates on the thin text a lead carries (title + snippet), `computeFitScore` on a normalized Job + Profile; both express "how much do these skills overlap the target" through the same primitive, at different altitudes.
+- **Alternatives considered**: reuse `computeFitScore` directly for ranking (impossible — it needs a normalized Job a lead does not have, ADR-0015); a bespoke ranking skill-comparison (rejected — duplicates matching logic, drifts from scoring over time).
+- **Impact**: matching-logic changes propagate to both scoring and ranking from one place; a future contributor is steered to `skillOverlap`/`rankOpportunity`, not a second scorer.
+- **Affected SDD section**: §16, §18; ADR-0007, ADR-0015.

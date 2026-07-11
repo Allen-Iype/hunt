@@ -2,6 +2,30 @@
 
 All notable changes, grouped by milestone.
 
+## M8 — Discovery: ATS tier (2026-07-11)
+
+First implementation of ADR-0015 — the "help me find jobs" entry point. Roadmap Phase-1 item 1.1.
+
+### Added
+- **Core**: `OpportunityRef` (a discovered **lead** — `.strict()` so it structurally rejects job fields; the ADR-0015 lead-vs-job invariant is a test, not a comment) and `SavedSearch` (stated intent: roles/skills/locations + which boards to watch), both with deterministic content-derived ids; `rankOpportunity(ref, savedSearch, profile?)` — deterministic intent-first ranking, profile **optional**; a shared `skillOverlap` primitive promoted so ranking and fit-scoring share one matching engine (no parallel scorer); new ports `DiscoveryPort` (async, produce-many), `OpportunityRefRepository`, `SavedSearchRepository`.
+- **Ingestion**: `DiscoveryAdapter` contract (produce-many, the inverse of `SourceAdapter`), a **Greenhouse** adapter over the public board API (no auth, structured JSON, no AI; HTTP injected for offline fixture tests), a discovery registry (separate from `SOURCE_ADAPTERS`), and `createDiscoverer` implementing `DiscoveryPort` (fan-out, dedup by URL, typed failure). `fetchJson` helper (honest, identified).
+- **Storage**: migration 5 — `saved_searches` and `opportunity_refs` (hot columns + JSON + Zod-revalidate; a seen/dismissed lifecycle index); their repositories, wired into `HuntStorage`.
+- **Capabilities**: `DiscoverJobs` (discover → dedup vs. seen refs → rank by intent → persist new leads; profile optional; **no AI**), `ManageSavedSearch` (CRUD), and `ImportOpportunityRef` (reuses the existing `ImportJob` pipeline unchanged, then marks the lead `imported`).
+- **CLI**: `hunt searches add/list/remove` and `hunt discover <search-id>` / `hunt discover --import <opp-id>`; container wiring; isolated presentation (kept minimal to not worsen the run.ts debt).
+- Tests 263 → 288: rank determinism + profile-optional, the lead-invariant, the Greenhouse adapter (fixture), the discoverer, the DiscoverJobs capability (incl. no-AI + seen-lifecycle), import-a-ref, and storage round-trips. Validated live against a real Greenhouse board (510 Stripe openings, correctly ranked).
+
+### Changed
+- `HuntStorage` gains `savedSearches` and `opportunityRefs`; the composition root wires the three discovery capabilities and shares one `ImportJob` instance with `ImportOpportunityRef`.
+
+### Fixed
+- Nothing (no reported bugs).
+
+### Deferred
+- Lever/Ashby adapters (same ATS tier, fast follows), aggregator feeds (Phase 2), best-effort web/LinkedIn discovery (Phase 3, behind the eval harness), scheduled/background polling (stays deferred — N9), semantic re-ranking. Discovery does not auto-import; it proposes, the user imports.
+
+### Breaking Changes
+- None (additive migration + additive ports).
+
 ## M5 — Tracking & release (2026-07-09) → v0.1
 
 ### Added

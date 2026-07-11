@@ -105,4 +105,29 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX idx_documents_job ON documents(job_id, kind, created_at DESC);
   `,
+  // 5 — discovery (ADR-0015, M8). Saved searches (stated intent) and the
+  // discovered leads they produce. OpportunityRefs are LEADS, never jobs — the
+  // full canonical model lives in `data`; hot columns support the seen/
+  // dismissed lifecycle and per-search, relevance-ordered listing.
+  `
+  CREATE TABLE saved_searches (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    data        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+  );
+
+  CREATE TABLE opportunity_refs (
+    id           TEXT PRIMARY KEY,
+    source_id    TEXT NOT NULL,
+    url          TEXT NOT NULL UNIQUE,
+    query_id     TEXT NOT NULL,
+    status       TEXT NOT NULL,
+    relevance    REAL NOT NULL,
+    data         TEXT NOT NULL,
+    discovered_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_opportunity_refs_search
+    ON opportunity_refs(query_id, status, relevance DESC);
+  `,
 ];
