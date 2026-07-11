@@ -113,6 +113,13 @@ documented starting point. Key points:
 - **The profile is the single source of truth for generation.** Only facts
   present here can ever appear in a generated resume or cover letter — this is
   enforced structurally (see [user-guide.md](user-guide.md#grounding)).
+- **Re-import is full-replace.** The stored profile always mirrors the last
+  imported file: editing a fact updates it (same id), adding one appends it, and
+  **removing a fact from the file deletes it**. A fact whose identity fields
+  (company/role/start date, or a skill's name) change gets a new id, so it reads
+  as one removal + one addition. To prevent accidental data loss, an import that
+  would delete facts is refused unless you pass `--allow-removals`
+  (see [user-guide.md](user-guide.md#profile)).
 
 You don't have to start from a blank file: `hunt profile from-resume <resume>`
 extracts your resume into a ready-to-edit `my-profile.yaml` (every fact

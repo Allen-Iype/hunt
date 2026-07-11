@@ -77,6 +77,61 @@ describe("hunt profile (integration)", () => {
     expect(result.exitCode).toBe(1);
     expect(result.output).toContain("hunt profile import");
   });
+
+  // --- M7: re-import delta + removal guard ---
+
+  const twoSkillsYaml = "basics:\n  name: Ada\nskills:\n  - name: TypeScript\n  - name: Rust\n";
+  const oneSkillYaml = "basics:\n  name: Ada\nskills:\n  - name: TypeScript\n";
+
+  it("shows (new profile) on first import and a change summary on re-import", async () => {
+    const huntHome = tempHome();
+    const f1 = join(huntHome, "p1.yaml");
+    writeFileSync(f1, oneSkillYaml);
+    const first = await run(["profile", "import", f1], { huntHome });
+    expect(first.output).toContain("(new profile)");
+
+    const f2 = join(huntHome, "p2.yaml");
+    writeFileSync(f2, twoSkillsYaml);
+    const second = await run(["profile", "import", f2], { huntHome });
+    expect(second.exitCode).toBe(0);
+    expect(second.output).toContain("Changes:");
+    expect(second.output).toContain("+1 added");
+  });
+
+  it("refuses to remove a fact without --allow-removals, naming it", async () => {
+    const huntHome = tempHome();
+    const f1 = join(huntHome, "two.yaml");
+    writeFileSync(f1, twoSkillsYaml);
+    await run(["profile", "import", f1], { huntHome });
+
+    const f2 = join(huntHome, "one.yaml");
+    writeFileSync(f2, oneSkillYaml);
+    const result = await run(["profile", "import", f2], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("Refusing");
+    expect(result.output).toContain("--allow-removals");
+    expect(result.output).toContain("skill: Rust");
+
+    // The stored profile still has both skills (nothing was deleted).
+    const shown = await run(["profile", "show"], { huntHome });
+    expect(shown.output).toContain("Rust");
+  });
+
+  it("removes the fact when --allow-removals is passed", async () => {
+    const huntHome = tempHome();
+    const f1 = join(huntHome, "two.yaml");
+    writeFileSync(f1, twoSkillsYaml);
+    await run(["profile", "import", f1], { huntHome });
+
+    const f2 = join(huntHome, "one.yaml");
+    writeFileSync(f2, oneSkillYaml);
+    const result = await run(["profile", "import", f2, "--allow-removals"], { huntHome });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("1 removed");
+
+    const shown = await run(["profile", "show"], { huntHome });
+    expect(shown.output).not.toContain("Rust");
+  });
 });
 
 describe("hunt profile from-resume (integration)", () => {

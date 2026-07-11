@@ -108,6 +108,23 @@ Your `profile.yaml` is the single source of truth. Edit it, then
 file changes nothing). `hunt profile show` summarizes what's loaded. Fact ids
 are assigned automatically; see [data-format.md](data-format.md#the-profile-yaml).
 
+**Keeping it current (re-import).** The file *is* your profile: what it contains
+exists, what you delete from it goes away. Re-importing an edited file reports
+what changed — `Changes: +2 added · 1 updated · 1 newly confirmed` — so you can
+see the effect. Because deletion is permanent, an import that would **remove**
+facts (things in your saved profile but no longer in the file) is **refused**
+unless you confirm:
+
+```sh
+hunt profile import my-profile.yaml                  # add/edit freely; deletions are blocked
+hunt profile import my-profile.yaml --allow-removals # …confirm you meant to delete
+```
+
+The refusal names exactly which facts would be removed, so nothing disappears
+silently. (Facts you seeded from a resume as `verified: false` and then keep in
+the file are counted as *newly confirmed* — appearing in your own file is how you
+vouch for them.)
+
 **Seed it from an existing resume** (so you don't hand-write YAML):
 
 ```sh
@@ -285,7 +302,7 @@ have it, or accept a document that doesn't claim it.
 |---------|---------|:--:|
 | `hunt --version` | Print the version | — |
 | `hunt profile from-resume <path> [-o <out>]` | Seed a reviewable profile.yaml from a resume (text/paste) | required |
-| `hunt profile import <path>` | Import/update your profile from YAML | — |
+| `hunt profile import <path> [--allow-removals]` | Import/update your profile from YAML (reports changes; blocks silent deletions) | — |
 | `hunt profile show` | Summarize the imported profile | — |
 | `hunt searches add <name> [--board/--lever/--ashby <slug>]... [--role/--skill/--location ...]` | Save a standing job search (mix ATS platforms) | — |
 | `hunt searches list` | List saved searches | — |

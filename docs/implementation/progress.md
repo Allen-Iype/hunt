@@ -14,18 +14,19 @@
 | M9 — Discovery ATS fast-follows (Lever + Ashby) | ✅ |
 | M6 — Resume Import (Seed) | ✅ |
 | M6 Phase 2 — PDF/DOCX resume input | ✅ |
+| M7 — Profile Augment | ✅ |
 
-**All V1 milestones complete → v0.1.** Post-V1: **M8 + M9 (Discovery ATS tier)** span three ATS platforms, and **M6 (Resume Import)** removes the biggest onboarding friction — seed a profile from an existing resume, now including **PDF and DOCX** (Phase 2). (M6 sequenced after M8/M9 by maintainer choice; both are Phase-1 peers under ADR-0015 / SDD §27.)
+**All V1 milestones complete → v0.1.** Post-V1: **M8 + M9 (Discovery ATS tier)** span three ATS platforms; **M6 (Resume Import, incl. PDF/DOCX)** removes the biggest onboarding friction; and **M7 (Profile Augment)** closes the edit-and-re-import loop — re-importing reports what changed and guards against silent deletions. The full onboarding arc (seed → confirm → augment) is complete.
 
 ---
 
 ## Current Milestone
 
-**M6 Phase 2 — PDF/DOCX resume input** · Status: **complete, awaiting approval** · Completion: 100%
+**M7 — Profile Augment** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: let `hunt profile from-resume` accept **PDF and DOCX** resumes, not just text/paste — closing the real onboarding case. Everything downstream (AI extraction, `verified:false` stamping, YAML output, review→import) is unchanged; this adds only a bytes→text front door in the CLI (`resume-reader.ts`), so `@hunt/core`/`@hunt/capabilities` stay parser-free. Detects format by extension + magic bytes; PDF via `pdf-parse`, DOCX via `mammoth`, both **lazily imported** (CLI-only, off the hot path — the first new runtime deps since v0.1, justified per SDD §21). Empty-text guard for scanned/image PDFs. Tests 313 → 321. Validated live: real PDF and DOCX → `gemma4:26b` via Ollama → `my-profile.yaml` → import → show.
+Objective: make re-importing an edited `profile.yaml` report what changed and **never delete a fact silently** (the augment loop was a gap in SDD §27). Key finding: with the YAML as source of truth, "merge" is full-replace done correctly and `save` already did it — so M7 adds only a pure `diffProfiles` in core (added/updated/removed/newly-confirmed by stable fact id), a delta on `ImportProfile`'s result, and a `--allow-removals` guard that refuses deletions before saving. **No storage/migration, no AI, no new deps.** Tests 321 → 335. Validated live: seed → edit → refused removal → `--allow-removals` → correct delta → idempotent re-import.
 
-Previous milestone — **M6 Phase 1 — Resume Import (Seed)** (complete): the `from-resume` → reviewable `profile.yaml` (every fact `verified:false`) → `hunt profile import` flow, `ExtractedResumeDraft` + `ExtractResumePort` + `EXTRACT_RESUME_TASK` + `ImportResume`; text/paste only, zero deps.
+Previous milestone — **M6 Phase 2 — PDF/DOCX resume input** (complete): `from-resume` accepts PDF/DOCX via a CLI-only, lazily-imported `resume-reader.ts` (`pdf-parse`/`mammoth`); core/capabilities stay parser-free.
 
 ---
 
@@ -62,12 +63,13 @@ Previous milestone — **M6 Phase 1 — Resume Import (Seed)** (complete): the `
 | 2026-07-12 | M9 Ingestion: **Lever** + **Ashby** discovery adapters (both public JSON, no auth, no AI; HTTP injected for offline fixtures) registered into the discovery registry; shared `teaser` helper (`plainTeaser`/`htmlTeaser`) extracted from Greenhouse. CLI `hunt searches add` generalized to per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable); boards render `adapterId:board`. No core/storage/capability change. Tests 288 → 297. Validated live: Lever `palantir` + Ashby `Ramp` → 400 leads (273+127), deduped, ranked, persisted per `source_id`; seen-lifecycle verified. | ADR-0015; decisions #21, #23 |
 | 2026-07-12 | M6 Resume Import (Seed): core `ExtractedResumeDraft` (no ids/timestamps/verified) + `ExtractResumePort`; AI `EXTRACT_RESUME_TASK` (v1) + `createAiResumeExtractor` + `extract-resume@1` prompt lock; capability `ImportResume` (draft → ProfileInput with `verified:false` on every fact → profile.yaml string; deterministic resume-date normalizer; round-trip guard). CLI `hunt profile from-resume` (writes `my-profile.yaml`, refuses overwrite, `-o` to override; needs-AI guidance). Phase 1 text/paste, **zero new deps**. Tests 297 → 313. Validated live: real resume → `gemma4:26b` (Ollama) → `my-profile.yaml` (all unverified, dates normalized) → import → show, full round-trip. | SDD §27 #1, §15; ADR-0013; decisions #24 |
 | 2026-07-12 | M6 Phase 2 PDF/DOCX input: CLI `resume-reader.ts` (`readResumeText` — extension + magic-byte format detection; PDF via `pdf-parse`, DOCX via `mammoth`, **lazily imported**, CLI-only; empty-text guard). Wired into `from-resume`; committed sample.pdf/.docx fixtures; offline reader + CLI extraction tests. First new runtime deps since v0.1 (`mammoth`, `pdf-parse`) — both optional-at-runtime; deps 4 → 6. Tests 313 → 321. Validated live: real PDF + DOCX → `gemma4:26b` → import → show. | SDD §21, §27 #1; decisions #25 |
+| 2026-07-12 | M7 Profile Augment: core `diffProfiles` (pure delta by stable fact id — added/updated/removed/newly-confirmed, incl. nested achievements); `ImportProfile` loads the stored profile, returns the delta, and refuses removals (typed `removals` stage) unless `allowRemovals`. CLI `hunt profile import` renders the change summary + `--allow-removals`/`-y`. Full-replace save unchanged; **no storage/migration, no AI, no new deps**. Tests 321 → 335. Validated live: seed → edit → refused removal → allow → correct delta → idempotent re-import. | SDD §12, §27; ADR-0011; decisions #26 |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M6 (Resume Import: Seed) delivered and validated, stopped per milestone workflow for approval. Post-V1 progress: the discovery ATS tier (M8 + M9) spans Greenhouse/Lever/Ashby, and M6 removes the biggest onboarding friction (resume → seeded profile). **M7 (Profile Augment)** is the designed follow-on and still awaits explicit go-ahead.
+Nothing in flight — M7 (Profile Augment) delivered and validated, stopped per milestone workflow for approval. Post-V1 progress: the discovery ATS tier (M8 + M9) spans Greenhouse/Lever/Ashby; M6 (incl. PDF/DOCX) removes the biggest onboarding friction; M7 closes the augment loop. The onboarding arc (seed → confirm → augment) is complete. Next designed candidates: the **eval harness** (safe AI iteration; unblocks the deferred web-discovery tier) and **analytics + FTS**.
 
 ---
 
@@ -80,10 +82,10 @@ V1 is feature-complete. Remaining before a real release cut are **maintainer act
 4. Run the full loop in anger on a real job search (the SDD §26 v0.1 exit criterion).
 
 Post-V1 order of attack (SDD §27):
-- ✅ **M6 — Resume Import (Seed)** — **done**: `hunt profile from-resume` → proposed `unverified` facts → reviewable `profile.yaml` → existing `hunt profile import` confirms. Phase 1 (text/paste, zero deps) shipped.
-- **M6 Phase 2 — PDF/DOCX resume input** (follow-on behind the same command): add `pdf-parse` + `mammoth` and a bytes+contentType→text step; each dependency justified per SDD §21 when added.
-- **M7 — Profile Augment:** re-importing an edited `profile.yaml` merges (full-replace done correctly — absence = deletion, `verified` promotes on re-import; no `profile_facts` table) with an added delta summary so deletions aren't silent. **This augment loop was a gap in the original SDD §27** — it named seeding, not the edit-and-re-import loop. Designed + approved (see `plans/m7-profile-augment.md`); awaits explicit go-ahead.
-- Then: browser extension, web UI, analytics + FTS, interview prep + company research, MCP server, discovery agent.
+- ✅ **M6 — Resume Import (Seed)** — **done** (Phase 1 text/paste + Phase 2 PDF/DOCX): `hunt profile from-resume` → proposed `unverified` facts → reviewable `profile.yaml` → existing `hunt profile import` confirms.
+- ✅ **M7 — Profile Augment** — **done**: re-importing an edited `profile.yaml` reports added/updated/removed/newly-confirmed and refuses silent deletions (`--allow-removals` to confirm). Full-replace save unchanged; no `profile_facts` table. `--add-only` union mode stays deferred.
+- Next designed candidates: **eval harness** (record/replay fixtures + behavioral eval for the AI tasks — unblocks the deferred web-discovery tier), then **analytics + FTS**.
+- Then: browser extension, web UI, interview prep + company research, MCP server, discovery agent.
 
 **Discovery follow-ups:** ~~Lever and Ashby discovery adapters~~ **done (M9)** — the ATS tier now spans Greenhouse, Lever, and Ashby. Next in discovery: Phase 2 aggregator feeds, then a convenience `hunt discover --all` (run all saved searches at once — a CLI-only add, architecture already supports it). The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
 

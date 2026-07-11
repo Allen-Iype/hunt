@@ -23,5 +23,6 @@ export * from "./models/application.js";
 export * from "./models/company.js";
 export * from "./state-machine.js";
 export * from "./profile-input.js";
+export * from "./profile-diff.js";
 export * from "./hash.js";
 export * from "./ports.js";

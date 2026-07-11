@@ -1,9 +1,13 @@
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import {
+  DEFAULT_PROFILE_ID,
   ProfileInputSchema,
+  diffProfiles,
   resolveProfileInput,
+  type FactRef,
   type Profile,
+  type ProfileDelta,
   type ProfileRepository,
   type Timestamp,
 } from "@hunt/core";
@@ -21,6 +25,12 @@ export interface ImportProfileInput {
   yamlSource: string;
   /** Injectable for determinism in tests; defaults to the current time. */
   now?: Timestamp;
+  /**
+   * Re-import is full-replace: facts absent from the YAML are deleted. When this
+   * import would remove existing facts and `allowRemovals` is not set, the import
+   * is refused (stage "removals") so a deletion is never silent (M7).
+   */
+  allowRemovals?: boolean;
 }
 
 export type ImportProfileResult =
@@ -35,8 +45,17 @@ export type ImportProfileResult =
         education: number;
         certifications: number;
       };
+      /** What changed vs. the previously-stored profile (M7). */
+      delta: ProfileDelta;
     }
-  | { ok: false; stage: "parse" | "validate" | "resolve" | "storage"; message: string };
+  | { ok: false; stage: "parse" | "validate" | "resolve" | "storage"; message: string }
+  | {
+      /** Would delete facts absent from the YAML; not saved. Re-run with allowRemovals. */
+      ok: false;
+      stage: "removals";
+      message: string;
+      removed: FactRef[];
+    };
 
 export interface ImportProfileDeps {
   profiles: ProfileRepository;
@@ -70,6 +89,24 @@ export function createImportProfile(deps: ImportProfileDeps) {
       return { ok: false, stage: "resolve", message: resolved.reason };
     }
 
+    // Diff against the stored profile (read-only) so we can report what changed
+    // and refuse a silent deletion. The save itself stays a full replace.
+    const previous = deps.profiles.get(DEFAULT_PROFILE_ID);
+    const delta = diffProfiles(previous, resolved.profile);
+
+    if (delta.removed.length > 0 && !input.allowRemovals) {
+      const names = delta.removed.map((f) => f.label).join(", ");
+      return {
+        ok: false,
+        stage: "removals",
+        message:
+          `this import would remove ${delta.removed.length} existing fact` +
+          `${delta.removed.length === 1 ? "" : "s"} (${names}). ` +
+          "Re-run with --allow-removals to confirm.",
+        removed: delta.removed,
+      };
+    }
+
     try {
       deps.profiles.save(resolved.profile);
     } catch (err) {
@@ -92,6 +129,7 @@ export function createImportProfile(deps: ImportProfileDeps) {
         education: p.education.length,
         certifications: p.certifications.length,
       },
+      delta,
     };
   };
 }

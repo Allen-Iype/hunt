@@ -2,6 +2,27 @@
 
 All notable changes, grouped by milestone.
 
+## M7 — Profile Augment (2026-07-12)
+
+Re-importing an edited `profile.yaml` now *feels* like a merge and — critically — **never deletes a fact silently**. When you seed a profile from an outdated resume (M6) and then add newer roles/skills over time, `hunt profile import` reports what changed (**added / updated / removed / newly-confirmed**) and **refuses to remove facts** unless you pass `--allow-removals`.
+
+The key design finding (approved plan): because `profile.yaml` is the source of truth (SDD §12), "merge" for identity is *full-replace done correctly* — what the YAML contains exists, what it omits is deleted, and `verified` is expressible in the YAML, so a kept `verified:false` seeded fact naturally promotes to `verified:true`. `ProfileRepository.save` already did the right thing — **no `profile_facts` table, no merge engine, no migration, no new deps**. M7 only *describes* the change and guards deletions.
+
+### Added
+- **Core**: `diffProfiles(previous, next) → ProfileDelta` (`packages/core/src/profile-diff.ts`) — a pure, deterministic diff by stable fact id (ADR-0011). Classifies every fact (experience, nested achievements, skills, projects, education, certifications) as added / removed / updated (same id, non-identity content changed) / newly-confirmed (`verified` false→true). An identity-bearing edit (company/role/startDate) changes the id, so it correctly reads as one removed + one added. `previousExisted` distinguishes a first import from a churn.
+- **Capabilities**: `ImportProfile` now loads the stored profile (read-only), computes the delta, and returns it on success. New `allowRemovals?` input and a typed `removals` failure stage: if an import would delete existing facts and `allowRemovals` is not set, it is **refused before saving**, carrying the named removed facts.
+- **CLI**: `hunt profile import` renders a change summary (`Changes: +N added · N updated · N removed · N newly confirmed`, or `(new profile)` / `no changes`); on a removal it refuses with the named facts and a re-run hint. New `--allow-removals` (alias `-y`) confirms deletions.
+- Tests 321 → 335: the core diff (added/removed/updated/newly-confirmed, nested achievements, identity-change = remove+add, first import); the capability (delta correctness, removal refused-without-save, allow-removals saves, verified promotion counted); CLI (new-profile line, removal refusal + hint, `--allow-removals` proceeds). Validated live: seed → edit (add + confirm + drop) → refused removal → `--allow-removals` → correct delta → `show` → idempotent re-import.
+
+### Changed
+- `hunt profile import` of an unchanged file still saves an identical profile, but now also prints the delta (`no changes` on a true no-op). Save semantics are byte-for-byte the same full-replace — only reporting and the removal guard are new.
+
+### Deferred
+- `hunt profile import --add-only` (union-merge without deletion) and a `profile_facts` table — both reintroduce the un-deletable-fact / dangling-evidence hazards the source-of-truth model exists to avoid; ship only if a real workflow needs them (SDD §12 rightly defers the table).
+
+### Breaking Changes
+- **Behavioral:** a `hunt profile import` that would delete existing facts now **fails (exit 1) unless `--allow-removals` is passed**. This protects against accidental data loss when re-importing an edited profile; the first import and any non-removing import are unaffected.
+
 ## M6 Phase 2 — PDF/DOCX resume input (2026-07-12)
 
 Extends `hunt profile from-resume` to accept **PDF and DOCX** resumes, not just plain text/paste. Everything downstream is unchanged — this adds only a bytes→text front door. The two parser libraries are the **first new runtime dependencies since v0.1**; both are **CLI-only and lazily imported**, so the text/paste path and every other command never load them, and `@hunt/core`/`@hunt/capabilities` stay parser-free (the dependency rule holds).

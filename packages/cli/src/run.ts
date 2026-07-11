@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ApplicationStatus, GeneratedDocument, IngestJobInput } from "@hunt/core";
+import type { ApplicationStatus, GeneratedDocument, IngestJobInput, ProfileDelta } from "@hunt/core";
 import type { TrackAction } from "@hunt/capabilities";
 import { createContainer, resolveHuntHome } from "./container.js";
 import { readResumeText } from "./resume-reader.js";
@@ -38,7 +38,7 @@ const USAGE = `hunt — a local-first AI career operating system
 Usage:
   hunt --version                 Print the Hunt version
   hunt profile from-resume <path>  Seed a reviewable profile.yaml from a resume — PDF, DOCX, or text (needs AI)
-  hunt profile import <path>     Import (or update) your profile from a profile.yaml
+  hunt profile import <path>     Import (or update) your profile from a profile.yaml (--allow-removals to delete facts)
   hunt profile show              Show a summary of the imported profile
   hunt import <url>              Import a job posting from a URL (LinkedIn or any job page)
   hunt import --file <path>      Import a job posting from a saved HTML/text file
@@ -719,6 +719,27 @@ async function runImport(args: readonly string[], options: RunOptions): Promise<
 }
 
 /**
+ * Render the re-import delta (M7): what changed vs. the stored profile. First
+ * import reads as "(new profile)"; an unchanged re-import as "no changes".
+ * Removed facts reached the save (the user allowed them) — name them so a
+ * deletion is visible even when confirmed.
+ */
+function formatDelta(delta: ProfileDelta): string {
+  if (!delta.previousExisted) return "  (new profile)";
+  const parts: string[] = [];
+  if (delta.added.length) parts.push(`+${delta.added.length} added`);
+  if (delta.updated.length) parts.push(`${delta.updated.length} updated`);
+  if (delta.removed.length) parts.push(`${delta.removed.length} removed`);
+  if (delta.newlyConfirmed.length) parts.push(`${delta.newlyConfirmed.length} newly confirmed`);
+  if (parts.length === 0) return "  no changes";
+  let out = `  Changes: ${parts.join(" · ")}`;
+  if (delta.removed.length > 0) {
+    out += `\n  removed:\n` + delta.removed.map((f) => `   - ${f.label}`).join("\n");
+  }
+  return out;
+}
+
+/**
  * `hunt profile from-resume <path> | --file <path> | -` → extract facts (AI) →
  * write a reviewable my-profile.yaml (every fact unverified). Refuses to clobber
  * an existing output file; `-o <path>` chooses the destination.
@@ -798,9 +819,10 @@ async function runProfile(args: readonly string[], options: RunOptions): Promise
   }
 
   if (subcommand === "import") {
-    const path = rest[0];
+    const allowRemovals = rest.includes("--allow-removals") || rest.includes("-y");
+    const path = rest.find((a) => !a.startsWith("-"));
     if (!path) {
-      return { exitCode: 1, output: "Usage: hunt profile import <path-to-profile.yaml>" };
+      return { exitCode: 1, output: "Usage: hunt profile import <path-to-profile.yaml> [--allow-removals]" };
     }
     let yamlSource: string;
     try {
@@ -813,8 +835,16 @@ async function runProfile(args: readonly string[], options: RunOptions): Promise
     }
     const container = createContainer(huntHome);
     try {
-      const result = container.importProfile({ yamlSource });
+      const result = container.importProfile({ yamlSource, allowRemovals });
       if (!result.ok) {
+        if (result.stage === "removals") {
+          return {
+            exitCode: 1,
+            output:
+              `Refusing: ${result.message}\n` +
+              result.removed.map((f) => `  - ${f.label}`).join("\n"),
+          };
+        }
         return { exitCode: 1, output: `Profile import failed (${result.stage}):\n${result.message}` };
       }
       const s = result.summary;
@@ -823,7 +853,8 @@ async function runProfile(args: readonly string[], options: RunOptions): Promise
         output:
           `Imported profile for ${result.profile.basics.name}\n` +
           `  experience: ${s.experience} (${s.achievements} achievements)\n` +
-          `  skills: ${s.skills} · projects: ${s.projects} · education: ${s.education} · certifications: ${s.certifications}`,
+          `  skills: ${s.skills} · projects: ${s.projects} · education: ${s.education} · certifications: ${s.certifications}\n` +
+          formatDelta(result.delta),
       };
     } finally {
       container.close();
