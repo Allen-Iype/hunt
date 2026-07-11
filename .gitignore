@@ -14,6 +14,10 @@ coverage/
 *.doc
 *.rtf
 *.odt
+# …except the synthetic resume fixtures used by the resume-reader tests (they
+# contain only the fictional "Dana Sample", no real personal data).
+!packages/cli/src/testing/fixtures/sample-resume.pdf
+!packages/cli/src/testing/fixtures/sample-resume.docx
 
 # Real profiles: the tracked template is examples/profile.example.yaml (kept via
 # the negation below). Every other profile YAML in the repo is personal.

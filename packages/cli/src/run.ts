@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { ApplicationStatus, GeneratedDocument, IngestJobInput } from "@hunt/core";
 import type { TrackAction } from "@hunt/capabilities";
 import { createContainer, resolveHuntHome } from "./container.js";
+import { readResumeText } from "./resume-reader.js";
 
 /**
  * CLI argument handling, kept thin: parse input, invoke one capability,
@@ -36,7 +37,7 @@ const USAGE = `hunt — a local-first AI career operating system
 
 Usage:
   hunt --version                 Print the Hunt version
-  hunt profile from-resume <path>  Seed a reviewable profile.yaml from an existing resume (needs AI)
+  hunt profile from-resume <path>  Seed a reviewable profile.yaml from a resume — PDF, DOCX, or text (needs AI)
   hunt profile import <path>     Import (or update) your profile from a profile.yaml
   hunt profile show              Show a summary of the imported profile
   hunt import <url>              Import a job posting from a URL (LinkedIn or any job page)
@@ -723,7 +724,8 @@ async function runImport(args: readonly string[], options: RunOptions): Promise<
  * an existing output file; `-o <path>` chooses the destination.
  */
 async function runProfileFromResume(rest: readonly string[], huntHome: string): Promise<RunResult> {
-  // Read the resume text from a path, --file <path>, or - (stdin paste).
+  // Read the resume text from a path (PDF/DOCX/text), --file <path>, or - (stdin
+  // paste). Stdin is always plain text — you can't meaningfully pipe a binary.
   const [source, maybeSecond] = rest;
   let resumeText: string;
   let sourceRef: string;
@@ -735,18 +737,15 @@ async function runProfileFromResume(rest: readonly string[], huntHome: string): 
     if (!path || path.startsWith("-")) {
       return {
         exitCode: 1,
-        output: "Usage: hunt profile from-resume <path> | --file <path> | -   [-o <out.yaml>]",
+        output: "Usage: hunt profile from-resume <path.pdf|.docx|.txt> | --file <path> | -   [-o <out.yaml>]",
       };
     }
-    try {
-      resumeText = readFileSync(path, "utf8");
-    } catch (err) {
-      return {
-        exitCode: 1,
-        output: `Cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`,
-      };
+    const read = await readResumeText(path);
+    if (!read.ok) {
+      return { exitCode: 1, output: read.error };
     }
-    sourceRef = path;
+    resumeText = read.text;
+    sourceRef = `${path} (${read.format})`;
   }
 
   // Output path: -o <path>, else ./my-profile.yaml. Never clobber.

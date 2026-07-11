@@ -23,8 +23,10 @@ all V1 milestones (M0–M5) complete.
   validate → document → **STOP for approval**. Never start the next milestone
   automatically; never work outside the current milestone's scope.
 - **YAGNI.** No abstractions "for the future," no new dependencies without a
-  demonstrated need (the whole project has **4** external runtime deps — keep it
-  that way; justify any addition).
+  demonstrated need. The core surface has **4** external runtime deps (`zod`,
+  `yaml`, `better-sqlite3`, `node-html-parser`); M6 Phase 2 added **2 CLI-only,
+  lazily-imported** parsers (`mammoth`, `pdf-parse`) that load only when a
+  PDF/DOCX resume is read — keep additions this disciplined and justify each.
 - **The dependency rule is enforced:** `packages/core` imports nothing from other
   `@hunt/*` packages and does no I/O (ESLint blocks violations). Adapter packages
   (`storage`, `ai`, `ingestion`, `render`) never import each other — they meet only

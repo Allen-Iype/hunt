@@ -4,9 +4,12 @@ The canonical entry point for a **new contributor or a fresh Claude session**.
 Read this first; it tells you what to read next and in what order, flags what is
 missing, and captures knowledge that until now lived only in working sessions.
 
-Project status: **v0.1** — all V1 milestones (M0–M5) complete, 263 tests green,
-4 external runtime dependencies, 0 code-debt markers. Next work is post-V1
-(resume import, then augment). See the Starter Pack at the bottom.
+Project status: **v0.1 + post-V1 milestones** — all V1 milestones (M0–M5)
+complete, plus Discovery ATS tier (M8+M9: Greenhouse/Lever/Ashby) and Resume
+Import (M6 incl. Phase 2 PDF/DOCX). 321 tests green; 4 core runtime dependencies
+plus 2 CLI-only, lazily-imported resume parsers (`mammoth`, `pdf-parse`); 0
+code-debt markers. Next planned: M7 (Profile Augment). See the Starter Pack at
+the bottom.
 
 ---
 

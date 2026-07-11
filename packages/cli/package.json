@@ -21,6 +21,8 @@
     "@hunt/core": "workspace:*",
     "@hunt/ingestion": "workspace:*",
     "@hunt/render": "workspace:*",
-    "@hunt/storage": "workspace:*"
+    "@hunt/storage": "workspace:*",
+    "mammoth": "^1.12.0",
+    "pdf-parse": "^2.4.5"
   }
 }

@@ -2,6 +2,28 @@
 
 All notable changes, grouped by milestone.
 
+## M6 Phase 2 — PDF/DOCX resume input (2026-07-12)
+
+Extends `hunt profile from-resume` to accept **PDF and DOCX** resumes, not just plain text/paste. Everything downstream is unchanged — this adds only a bytes→text front door. The two parser libraries are the **first new runtime dependencies since v0.1**; both are **CLI-only and lazily imported**, so the text/paste path and every other command never load them, and `@hunt/core`/`@hunt/capabilities` stay parser-free (the dependency rule holds).
+
+### Added
+- **CLI**: `packages/cli/src/resume-reader.ts` — `readResumeText(path)`, the single bytes→text seam. Detects format by extension **and** magic bytes (`%PDF-` → PDF, `PK\x03\x04` → DOCX/zip), so content wins over a wrong or missing extension. PDF via `pdf-parse` (page markers stripped), DOCX via `mammoth` (`extractRawText`), text read as UTF-8 — parsers loaded with `await import()` only when their format is actually read. Guards a document with no extractable text (e.g. a scanned, image-only PDF) with actionable guidance.
+- **CLI**: `hunt profile from-resume` now accepts `<path.pdf | .docx | .txt>`; the source summary line reports the detected format. Stdin (`-`) stays UTF-8 text.
+- **Fixtures/tests**: committed `sample-resume.pdf` (~0.8 KB) and `sample-resume.docx` (~1.9 KB) under `packages/cli/src/testing/fixtures/`; `resume-reader.test.ts` (PDF/DOCX/text extraction, magic-byte-over-extension detection, unreadable-file and empty-text guards — all offline, no AI, no network) and CLI tests that read a DOCX/PDF through to the extraction boundary. Tests 313 → 321.
+
+### Dependencies (SDD §21 — first new runtime deps since v0.1, both justified)
+- `mammoth` (DOCX → raw text; pure-JS, the de-facto library).
+- `pdf-parse@2` (PDF → text via `pdfjs-dist`; pulls a native canvas binary — heavy, hence lazy-loaded off the hot path). Runtime deps 4 → 6, both **optional at runtime** (only loaded when a PDF/DOCX is read).
+
+### Changed
+- Nothing behavioral for existing inputs. Plain-text/paste `from-resume`, and every other command, are byte-for-byte unaffected (parsers are never imported on those paths).
+
+### Deferred
+- OCR for scanned PDFs, legacy `.doc` (binary Word), and RTF — out of scope; plain-text extraction only, which is all the AI extractor needs.
+
+### Breaking Changes
+- None (additive input formats + two lazily-loaded CLI deps).
+
 ## M6 — Resume Import (Seed) (2026-07-12)
 
 The biggest onboarding friction removed (SDD §27 #1, F11 §4): seed a profile from an existing resume instead of hand-authoring YAML. `hunt profile from-resume <file>` extracts structured facts via the AI port, writes a reviewable `profile.yaml` with **every fact `verified: false`**, and the existing `hunt profile import` is the confirm step — AI proposes, a human vouches (SDD §15). The manual YAML path is untouched. **Phase 1: plain text + paste only — zero new dependencies.**

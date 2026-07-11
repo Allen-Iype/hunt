@@ -111,10 +111,10 @@ are assigned automatically; see [data-format.md](data-format.md#the-profile-yaml
 **Seed it from an existing resume** (so you don't hand-write YAML):
 
 ```sh
-hunt profile from-resume resume.txt          # or --file <path>, or - to paste on stdin
+hunt profile from-resume resume.pdf          # PDF, DOCX, or text; or --file <path>, or - to paste text on stdin
 #   → wrote my-profile.yaml (facts marked UNVERIFIED)
 #     review & edit it, then: hunt profile import my-profile.yaml
-hunt profile from-resume resume.txt -o me.yaml  # choose the output path
+hunt profile from-resume resume.docx -o me.yaml  # choose the output path
 ```
 
 `from-resume` uses AI to extract structured facts and writes a **reviewable
@@ -125,9 +125,9 @@ flip facts to `verified: true` as you confirm them (optional — generation just
 It won't overwrite an existing `my-profile.yaml` — remove it or pass `-o`. This
 step needs an AI provider (see [AI configuration](#ai-configuration)); the manual YAML path
 always works without one. Dates the resume states loosely (e.g. "Mar 2021",
-"2019") are normalized to full ISO dates you can adjust. **Today it reads plain
-text / paste; PDF and DOCX are coming** — for now, export or copy your resume to
-text first.
+"2019") are normalized to full ISO dates you can adjust. **Accepts PDF, DOCX, and
+plain text** (format is auto-detected); stdin paste (`-`) is text only. A scanned
+image-only PDF has no extractable text — export or paste a text version instead.
 
 ### Discover
 

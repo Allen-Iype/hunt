@@ -11,6 +11,8 @@ const EXAMPLE_PROFILE = fileURLToPath(
 );
 const fixture = (name: string) =>
   fileURLToPath(new URL(`../../ingestion/src/testing/fixtures/${name}`, import.meta.url));
+const cliFixture = (name: string) =>
+  fileURLToPath(new URL(`./testing/fixtures/${name}`, import.meta.url));
 
 const cleanups: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
@@ -110,6 +112,29 @@ describe("hunt profile from-resume (integration)", () => {
     expect(result.exitCode).toBe(1);
     expect(result.output).toContain("already exists");
     expect(readFileSync(out, "utf8")).toBe("keep me\n");
+  });
+
+  it("reads a DOCX resume through to extraction (then needs-AI, no provider configured)", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    const out = join(huntHome, "out.yaml");
+    // The DOCX is parsed to text successfully; only fact extraction needs AI, so
+    // the failure is the extract stage — proving the reader is wired in.
+    const result = await run(["profile", "from-resume", cliFixture("sample-resume.docx"), "-o", out], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("(extract)");
+    expect(result.output).toContain("no AI provider");
+    expect(existsSync(out)).toBe(false);
+  });
+
+  it("reads a PDF resume through to extraction (then needs-AI, no provider configured)", async () => {
+    cleanEnv();
+    const huntHome = tempHome();
+    const out = join(huntHome, "out.yaml");
+    const result = await run(["profile", "from-resume", cliFixture("sample-resume.pdf"), "-o", out], { huntHome });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("(extract)");
+    expect(result.output).toContain("no AI provider");
   });
 
   it("shows usage when given no source", async () => {

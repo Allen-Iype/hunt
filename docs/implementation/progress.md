@@ -13,18 +13,19 @@
 | M8 — Discovery: ATS tier | ✅ |
 | M9 — Discovery ATS fast-follows (Lever + Ashby) | ✅ |
 | M6 — Resume Import (Seed) | ✅ |
+| M6 Phase 2 — PDF/DOCX resume input | ✅ |
 
-**All V1 milestones complete → v0.1.** Post-V1: **M8 + M9 (Discovery ATS tier)** span three ATS platforms, and **M6 (Resume Import)** removes the biggest onboarding friction — seed a profile from an existing resume. (M6 sequenced after M8/M9 by maintainer choice; both are Phase-1 peers under ADR-0015 / SDD §27.)
+**All V1 milestones complete → v0.1.** Post-V1: **M8 + M9 (Discovery ATS tier)** span three ATS platforms, and **M6 (Resume Import)** removes the biggest onboarding friction — seed a profile from an existing resume, now including **PDF and DOCX** (Phase 2). (M6 sequenced after M8/M9 by maintainer choice; both are Phase-1 peers under ADR-0015 / SDD §27.)
 
 ---
 
 ## Current Milestone
 
-**M6 — Resume Import (Seed)** · Status: **complete, awaiting approval** · Completion: 100%
+**M6 Phase 2 — PDF/DOCX resume input** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: seed a profile from an existing resume instead of hand-authoring YAML (SDD §27 #1, F11 §4 — the biggest onboarding friction). `hunt profile from-resume <file>` extracts structured facts via the AI port, writes a reviewable `profile.yaml` with **every fact `verified: false`**, and the existing `hunt profile import` confirms it — AI proposes, a human vouches (SDD §15). **Phase 1: plain text + paste, zero new deps** (PDF/DOCX deferred to Phase 2 behind the same command). New: `ExtractedResumeDraft` model + `ExtractResumePort` (ADR-0013), `EXTRACT_RESUME_TASK` + prompt lock, `ImportResume` capability (with a deterministic resume-date normalizer so output round-trips through the strict `ProfileInputSchema`), the CLI subcommand (refuses to overwrite; `-o` to choose destination). Tests 297 → 313. Validated live: real resume → `gemma4:26b` via Ollama → `my-profile.yaml` (all unverified, dates normalized) → `hunt profile import` → `hunt profile show`, full round-trip.
+Objective: let `hunt profile from-resume` accept **PDF and DOCX** resumes, not just text/paste — closing the real onboarding case. Everything downstream (AI extraction, `verified:false` stamping, YAML output, review→import) is unchanged; this adds only a bytes→text front door in the CLI (`resume-reader.ts`), so `@hunt/core`/`@hunt/capabilities` stay parser-free. Detects format by extension + magic bytes; PDF via `pdf-parse`, DOCX via `mammoth`, both **lazily imported** (CLI-only, off the hot path — the first new runtime deps since v0.1, justified per SDD §21). Empty-text guard for scanned/image PDFs. Tests 313 → 321. Validated live: real PDF and DOCX → `gemma4:26b` via Ollama → `my-profile.yaml` → import → show.
 
-Previous milestone — **M9 — Discovery ATS fast-follows** (complete): Lever + Ashby adapters over public JSON APIs registered into the M8 discovery registry; `hunt searches add` per-source flags. No core/storage/capability change. Validated live (400 leads across two platforms).
+Previous milestone — **M6 Phase 1 — Resume Import (Seed)** (complete): the `from-resume` → reviewable `profile.yaml` (every fact `verified:false`) → `hunt profile import` flow, `ExtractedResumeDraft` + `ExtractResumePort` + `EXTRACT_RESUME_TASK` + `ImportResume`; text/paste only, zero deps.
 
 ---
 
@@ -60,6 +61,7 @@ Previous milestone — **M9 — Discovery ATS fast-follows** (complete): Lever +
 | 2026-07-11 | M8 Capabilities: `DiscoverJobs` (discover→dedup→rank→persist; no AI), `ManageSavedSearch`, `ImportOpportunityRef` (reuses `ImportJob`, marks lead imported). CLI `hunt searches` + `hunt discover`. Tests 263 → 288. Validated live: 510 real Stripe openings, correctly ranked; import + seen-lifecycle verified. | SDD §13; ADR-0015 |
 | 2026-07-12 | M9 Ingestion: **Lever** + **Ashby** discovery adapters (both public JSON, no auth, no AI; HTTP injected for offline fixtures) registered into the discovery registry; shared `teaser` helper (`plainTeaser`/`htmlTeaser`) extracted from Greenhouse. CLI `hunt searches add` generalized to per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable); boards render `adapterId:board`. No core/storage/capability change. Tests 288 → 297. Validated live: Lever `palantir` + Ashby `Ramp` → 400 leads (273+127), deduped, ranked, persisted per `source_id`; seen-lifecycle verified. | ADR-0015; decisions #21, #23 |
 | 2026-07-12 | M6 Resume Import (Seed): core `ExtractedResumeDraft` (no ids/timestamps/verified) + `ExtractResumePort`; AI `EXTRACT_RESUME_TASK` (v1) + `createAiResumeExtractor` + `extract-resume@1` prompt lock; capability `ImportResume` (draft → ProfileInput with `verified:false` on every fact → profile.yaml string; deterministic resume-date normalizer; round-trip guard). CLI `hunt profile from-resume` (writes `my-profile.yaml`, refuses overwrite, `-o` to override; needs-AI guidance). Phase 1 text/paste, **zero new deps**. Tests 297 → 313. Validated live: real resume → `gemma4:26b` (Ollama) → `my-profile.yaml` (all unverified, dates normalized) → import → show, full round-trip. | SDD §27 #1, §15; ADR-0013; decisions #24 |
+| 2026-07-12 | M6 Phase 2 PDF/DOCX input: CLI `resume-reader.ts` (`readResumeText` — extension + magic-byte format detection; PDF via `pdf-parse`, DOCX via `mammoth`, **lazily imported**, CLI-only; empty-text guard). Wired into `from-resume`; committed sample.pdf/.docx fixtures; offline reader + CLI extraction tests. First new runtime deps since v0.1 (`mammoth`, `pdf-parse`) — both optional-at-runtime; deps 4 → 6. Tests 313 → 321. Validated live: real PDF + DOCX → `gemma4:26b` → import → show. | SDD §21, §27 #1; decisions #25 |
 
 ---
 
@@ -100,7 +102,7 @@ Post-V1 order of attack (SDD §27):
 | ~~Discovery ATS tier ships Greenhouse only~~ | ~~M8 scope was a Greenhouse-first vertical slice to prove every seam (ADR-0015)~~ | **Resolved M9**: Lever + Ashby adapters added (one adapter + fixture each into the discovery registry). ATS tier now spans three platforms. |
 | `OpportunityRef` lead-vs-job invariant is review-guarded | ADR-0015: a ref must never grow job structure or discovery drifts into aggregation. Enforced by `.strict()` + a test today. | Keep the invariant test green; reject any PR adding job fields to `OpportunityRef` |
 | Resume-seeded basics can't be marked unverified | `ProfileBasicsSchema` has no `verified` field (M6). Basics (name/email) are low-risk and shown in the reviewable YAML, so extraction ships them without an unverified marker. | Add `verified` to basics only if a real need appears; otherwise accept — the user reviews basics before `hunt profile import` |
-| Resume import is text/paste only (no PDF/DOCX) | M6 Phase 1 kept to zero new deps (SDD §21) to prove the AI extraction end-to-end | M6 Phase 2: add `pdf-parse` + `mammoth` behind the same `from-resume` command (isolated bytes→text step); justify each dep when added |
+| ~~Resume import is text/paste only (no PDF/DOCX)~~ | ~~M6 Phase 1 kept to zero new deps~~ | **Resolved M6 Phase 2**: `pdf-parse` + `mammoth` added (lazily imported, CLI-only) behind the same `from-resume` command via `resume-reader.ts`. PDF/DOCX/text all supported. |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
 | ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |
 | Automated PDF rendering not shipped | Headless-browser dependency deferred (ADR-0014) | User prints HTML→PDF; add a PDF adapter behind `RenderPort` when it earns its keep |
