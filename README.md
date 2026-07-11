@@ -47,8 +47,8 @@ cp examples/profile.example.yaml my-profile.yaml   # edit with your real facts
 hunt profile import my-profile.yaml
 hunt profile show
 
-hunt searches add "backend remote" --board stripe --role engineer --skill go
-hunt discover <search-id>                          # find + rank openings (no profile/AI needed)
+hunt searches add "backend remote" --board stripe --lever palantir --ashby Ramp --role engineer --skill go
+hunt discover <search-id>                          # find + rank openings across Greenhouse/Lever/Ashby (no profile/AI needed)
 hunt discover --import <opp-id>                     # pull a discovered lead in as a job
 
 hunt import https://www.linkedin.com/jobs/view/…   # or import a specific posting by URL

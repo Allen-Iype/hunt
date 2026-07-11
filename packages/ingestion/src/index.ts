@@ -9,5 +9,7 @@ export { assembleJob } from "./assemble.js";
 export { FetchError, HUNT_USER_AGENT, fetchPage, fetchJson } from "./fetch.js";
 export { createDiscoverer } from "./discovery/discoverer.js";
 export { createGreenhouseAdapter } from "./discovery/adapters/greenhouse.js";
+export { createLeverAdapter } from "./discovery/adapters/lever.js";
+export { createAshbyAdapter } from "./discovery/adapters/ashby.js";
 export { buildDiscoveryRegistry } from "./discovery/registry.js";
 export type { DiscoveryAdapter } from "./discovery/types.js";

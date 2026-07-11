@@ -181,3 +181,12 @@ Deviations from, or refinements of, the SDD made during implementation. Architec
 - **Alternatives considered**: reuse `computeFitScore` directly for ranking (impossible — it needs a normalized Job a lead does not have, ADR-0015); a bespoke ranking skill-comparison (rejected — duplicates matching logic, drifts from scoring over time).
 - **Impact**: matching-logic changes propagate to both scoring and ranking from one place; a future contributor is steered to `skillOverlap`/`rankOpportunity`, not a second scorer.
 - **Affected SDD section**: §16, §18; ADR-0007, ADR-0015.
+
+## 23. Shared `teaser` helper; per-source `--board`/`--lever`/`--ashby` flags
+
+- **Date**: 2026-07-12 (M9)
+- **Decision**: (a) the snippet/teaser logic is extracted from the Greenhouse adapter into a shared `discovery/adapters/teaser.ts` with two functions — `htmlTeaser` (unescape + strip tags, for Greenhouse's escaped `content`) and `plainTeaser` (normalize + cap, for Lever/Ashby `descriptionPlain`). (b) `hunt searches add` names a discovery source with per-platform repeatable flags: `--board <slug>` (defaults to Greenhouse, back-compat), `--lever <slug>`, `--ashby <slug>`, all mixable in one search; boards render as `adapterId:board`.
+- **Reason**: with three adapters, three copies of the teaser truncation/normalization would drift; the two variants differ only in HTML handling, so one module keeps the lead-invariant cap (200 chars, teaser-only) in a single place. For the CLI, per-source flags read naturally and reuse M8's repeatable-flag idiom (`collectFlag`); the `adapterId:board` rendering disambiguates the same slug on two platforms. Rejected `--board <adapterId>:<slug>` (noisier values, still needs a default) — chosen shape confirmed with the maintainer.
+- **Alternatives considered**: duplicate the teaser per adapter (rejected — three copies of an invariant-bearing helper); a single `--board <adapterId>:<slug>` flag (rejected — see above).
+- **Impact**: a new ATS adapter reuses `plainTeaser`/`htmlTeaser` and registers one flag; the lead teaser cap lives in one file. No core/storage/capability change — `createDiscoverer()` picks up registry additions automatically.
+- **Affected SDD section**: §8, §20; ADR-0015. Extends decision #21.

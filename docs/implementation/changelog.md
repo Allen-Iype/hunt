@@ -2,6 +2,27 @@
 
 All notable changes, grouped by milestone.
 
+## M9 — Discovery ATS fast-follows: Lever + Ashby (2026-07-12)
+
+Extends the M8 Discovery ATS tier with two more adapters (ADR-0015 same-tier fast-follows). Both publish public JSON APIs — no auth, structured, **no AI, no profile, no new runtime deps**. Reuses every M8 seam unchanged: the `DiscoveryAdapter` contract + registry, `DiscoveredRef` leads (carrying their own `sourceId`), the lead-vs-job invariant, `rankOpportunity`, the storage repos, and the `DiscoverJobs`/`ImportOpportunityRef` capabilities.
+
+### Added
+- **Ingestion**: a **Lever** discovery adapter (`api.lever.co/v0/postings/<board>?mode=json` — a top-level array; maps `text`/`hostedUrl`/`categories.location`, teaser from `descriptionPlain`) and an **Ashby** discovery adapter (`api.ashbyhq.com/posting-api/job-board/<board>` — `{ jobs }`; skips `isListed:false`, teaser from the already-plain `descriptionPlain`). Both inject the HTTP call for offline fixture contract tests, matching the Greenhouse template. A shared `teaser` helper (`plainTeaser` for plain-text sources, `htmlTeaser` for Greenhouse's escaped HTML) extracted so the three adapters don't each carry a copy.
+- **CLI**: `hunt searches add` generalized to per-source flags — `--board <greenhouse-slug>` (default, back-compat), `--lever <slug>`, `--ashby <slug>`, all repeatable and mixable in one search. Boards now render qualified as `adapterId:board` in `searches add`/`list` so mixed-platform boards read unambiguously.
+- Tests 288 → 297: Lever and Ashby adapter contract tests (fixtures recorded from the live API shapes; maps-to-leads, skip-malformed, skip-unlisted, teaser + lead-invariant assertions, empty board) and CLI multi-source `searches add`/`list` tests. Validated live: one search over Lever (`palantir`) + Ashby (`Ramp`) pulled 400 leads (273 Lever + 127 Ashby), deduped, ranked, and correctly persisted per `source_id`; the seen-lifecycle skipped already-stored refs on re-run.
+
+### Changed
+- The discovery registry's default set is now `[greenhouse, lever, ashby]` — the single file that changes per source (as designed in M8). No core/storage/capability change; `createDiscoverer()` picks the new adapters up automatically, so the CLI container is untouched.
+
+### Fixed
+- Nothing (no reported bugs).
+
+### Deferred
+- Aggregator feeds (Phase 2), best-effort web/LinkedIn discovery (Phase 3, behind the eval harness), scheduled/background polling, semantic re-ranking, and a future convenience flag to run all saved searches at once (`hunt discover --all`). Company name is absent from Lever/Ashby lead payloads (both platforms omit it at the board level) — it is resolved on import via the existing pipeline; leads still carry title + snippet + location for ranking.
+
+### Breaking Changes
+- None. `--board <slug>` keeps its M8 meaning (Greenhouse); the change is purely additive.
+
 ## M8 — Discovery: ATS tier (2026-07-11)
 
 First implementation of ADR-0015 — the "help me find jobs" entry point. Roadmap Phase-1 item 1.1.

@@ -11,18 +11,19 @@
 | M4 — Generation | ✅ |
 | M5 — Tracking & release | ✅ |
 | M8 — Discovery: ATS tier | ✅ |
+| M9 — Discovery ATS fast-follows (Lever + Ashby) | ✅ |
 
-**All V1 milestones complete → v0.1.** Post-V1: **M8 (Discovery: ATS tier)** complete — the first "help me find jobs" entry point (ADR-0015, roadmap Phase-1 item 1.1).
+**All V1 milestones complete → v0.1.** Post-V1: **M8 (Discovery: ATS tier)** and **M9 (Lever + Ashby fast-follows)** complete — the "help me find jobs" entry point now spans three ATS platforms (ADR-0015, roadmap Phase-1 item 1.1).
 
 ---
 
 ## Current Milestone
 
-**M8 — Discovery: ATS tier** · Status: **complete, awaiting approval** · Completion: 100%
+**M9 — Discovery ATS fast-follows (Lever + Ashby)** · Status: **complete, awaiting approval** · Completion: 100%
 
-Objective: ship the first "help me find jobs" entry point (ADR-0015, roadmap Phase-1 item 1.1). `hunt discover` runs a `SavedSearch` against ATS boards (Greenhouse first), pulls published openings into the local store as `OpportunityRef` **leads**, ranks them deterministically by stated intent (profile optional), and lets the user import chosen leads through the existing `ImportJob` pipeline. **No profile and no AI required** — the ATS tier is structured JSON. Discovery emits refs, never jobs (the lead invariant is enforced by `.strict()` and tested). Validated live against a real Greenhouse board (510 Stripe openings, correctly ranked).
+Objective: extend the M8 Discovery ATS tier with Lever and Ashby adapters (ADR-0015 same-tier fast-follows). Both publish public JSON APIs — no auth, structured, **no AI, no profile, no new runtime deps**. Reuses every M8 seam unchanged: the `DiscoveryAdapter` contract + registry, `DiscoveredRef` leads (carrying their own `sourceId`), the lead invariant, `rankOpportunity`, the storage repos, and the `DiscoverJobs`/`ImportOpportunityRef` capabilities. Adapters just register into the registry; `hunt searches add` gains per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable). Tests 288 → 297. Validated live: one search over Lever (`palantir`) + Ashby (`Ramp`) pulled 400 leads (273 + 127), deduped, ranked, persisted per `source_id`; seen-lifecycle skipped stored refs on re-run.
 
-Previous milestone — **M5 — Tracking & release** (complete → v0.1): `hunt track/list/show/backup` over the M1 state machine + event log; release docs. No core changes.
+Previous milestone — **M8 — Discovery: ATS tier** (complete): the first "help me find jobs" entry point over Greenhouse — `hunt searches` + `hunt discover`, `OpportunityRef` leads, intent-first ranking (profile optional), migration 5, three capabilities. No profile / no AI. Validated live against a real Greenhouse board (510 Stripe openings).
 
 ---
 
@@ -56,12 +57,13 @@ Previous milestone — **M5 — Tracking & release** (complete → v0.1): `hunt 
 | 2026-07-11 | M8 Ingestion: `DiscoveryAdapter` contract (produce-many), Greenhouse adapter over the public board API (no AI; HTTP injected for fixtures), discovery registry (separate from `SOURCE_ADAPTERS`), `createDiscoverer`, `fetchJson`. | ADR-0015; decisions #21 |
 | 2026-07-11 | M8 Storage: migration 5 (`saved_searches`, `opportunity_refs` + seen-lifecycle index) + repositories, wired into `HuntStorage`. | SDD §14 |
 | 2026-07-11 | M8 Capabilities: `DiscoverJobs` (discover→dedup→rank→persist; no AI), `ManageSavedSearch`, `ImportOpportunityRef` (reuses `ImportJob`, marks lead imported). CLI `hunt searches` + `hunt discover`. Tests 263 → 288. Validated live: 510 real Stripe openings, correctly ranked; import + seen-lifecycle verified. | SDD §13; ADR-0015 |
+| 2026-07-12 | M9 Ingestion: **Lever** + **Ashby** discovery adapters (both public JSON, no auth, no AI; HTTP injected for offline fixtures) registered into the discovery registry; shared `teaser` helper (`plainTeaser`/`htmlTeaser`) extracted from Greenhouse. CLI `hunt searches add` generalized to per-source flags (`--board`/`--lever`/`--ashby`, repeatable + mixable); boards render `adapterId:board`. No core/storage/capability change. Tests 288 → 297. Validated live: Lever `palantir` + Ashby `Ramp` → 400 leads (273+127), deduped, ranked, persisted per `source_id`; seen-lifecycle verified. | ADR-0015; decisions #21, #23 |
 
 ---
 
 ## Current Focus
 
-Nothing in flight — M8 (Discovery: ATS tier) delivered and validated, stopped per milestone workflow for approval. All V1 milestones complete (v0.1); M8 is the first post-V1 milestone (ADR-0015 Phase-1).
+Nothing in flight — M9 (Lever + Ashby fast-follows) delivered and validated, stopped per milestone workflow for approval. All V1 milestones complete (v0.1); the discovery ATS tier (M8 + M9) now spans Greenhouse, Lever, and Ashby (ADR-0015 Phase-1).
 
 ---
 
@@ -80,7 +82,7 @@ Post-V1 order of attack (SDD §27), with the top item now split into two planned
 
 M6/M7 are designed and approved (see the plan file); implementation awaits explicit go-ahead.
 
-**Post-M8 discovery follow-ups (same ATS tier, fast follows):** Lever and Ashby discovery adapters (both publish JSON — one adapter file + fixture each, slotting into the discovery registry). Then Phase 2: aggregator feeds. The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
+**Discovery follow-ups:** ~~Lever and Ashby discovery adapters~~ **done (M9)** — the ATS tier now spans Greenhouse, Lever, and Ashby. Next in discovery: Phase 2 aggregator feeds, then a convenience `hunt discover --all` (run all saved searches at once — a CLI-only add, architecture already supports it). The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
 
 **Standing maintainer actions:** items 1–2 above.
 
@@ -94,7 +96,7 @@ M6/M7 are designed and approved (see the plan file); implementation awaits expli
 | `hunt profile show` output minimal | Carried from M1 | Acceptable for v0.1; richer view lands with the web UI |
 | AI quality unvalidated against real models | Carried from M2; prompt locks now force versioning discipline, but behavioral eval needs live calls | Record fixtures + run eval when a key is available |
 | Skill dictionary is deliberately small (57 entries) | Quality investment is data-only and incremental. **M8 raised the stakes:** discovery ranking (`rankOpportunity`) also depends on the dictionary — an unknown skill in a lead's title/snippet won't count toward relevance. | Grow it from real usage; every unknown-but-relevant skill in a posting *or discovered lead* is a dictionary PR |
-| Discovery ATS tier ships Greenhouse only | M8 scope was a Greenhouse-first vertical slice to prove every seam (ADR-0015) | Lever + Ashby adapters are fast follows — one adapter + fixture each into the discovery registry (decisions #21) |
+| ~~Discovery ATS tier ships Greenhouse only~~ | ~~M8 scope was a Greenhouse-first vertical slice to prove every seam (ADR-0015)~~ | **Resolved M9**: Lever + Ashby adapters added (one adapter + fixture each into the discovery registry). ATS tier now spans three platforms. |
 | `OpportunityRef` lead-vs-job invariant is review-guarded | ADR-0015: a ref must never grow job structure or discovery drifts into aggregation. Enforced by `.strict()` + a test today. | Keep the invariant test green; reject any PR adding job fields to `OpportunityRef` |
 | Requirement `span` offsets (SDD §11) not populated | AI offsets are unreliable; JSON-LD/DOM tiers don't isolate requirement sentences | Revisit if the audit UI (post-V1) needs highlighting |
 | ~~No `hunt jobs list/show`~~ | ~~M5 scope~~ | **Resolved M5**: `hunt list` / `hunt show` |

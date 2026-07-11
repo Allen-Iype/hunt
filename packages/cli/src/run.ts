@@ -53,8 +53,9 @@ Usage:
   hunt show <job-id|app-id>      Show a job: analysis, documents, and application timeline
   hunt backup [<dir>]            Snapshot ~/.hunt (database + vault + documents) to a directory
 
-  hunt searches add <name> --board <gh-slug> [--role <r>]... [--skill <s>]... [--location <l>]...
-                                 Save a standing search (which boards to watch + your intent)
+  hunt searches add <name> [--board <gh-slug>]... [--lever <slug>]... [--ashby <slug>]... [--role <r>]... [--skill <s>]... [--location <l>]...
+                                 Save a standing search (which boards to watch + your intent).
+                                 Mix platforms: --board greenhouse-slug --lever lever-slug --ashby ashby-slug
   hunt searches list             List saved searches
   hunt searches remove <id>      Delete a saved search
   hunt discover <search-id>      Find jobs from the search's boards, ranked to your intent
@@ -524,6 +525,14 @@ function collectFlag(args: readonly string[], flag: string): string[] {
   return out;
 }
 
+const SEARCHES_ADD_USAGE =
+  "Usage: hunt searches add <name> [--board <greenhouse-slug>]... [--lever <slug>]... [--ashby <slug>]... [--role <r>]... [--skill <s>]... [--location <l>]...";
+
+/** Render a search's sources as `adapterId:board`, so mixed-platform boards read unambiguously. */
+function formatSources(sources: readonly { adapterId: string; board: string }[]): string {
+  return sources.map((x) => `${x.adapterId}:${x.board}`).join(", ");
+}
+
 function runSearches(args: readonly string[], options: RunOptions): RunResult {
   const [sub, ...rest] = args;
   const container = createContainer(options.huntHome ?? resolveHuntHome());
@@ -531,11 +540,21 @@ function runSearches(args: readonly string[], options: RunOptions): RunResult {
     if (sub === "add") {
       const name = rest[0];
       if (!name || name.startsWith("-")) {
-        return { exitCode: 1, output: 'Usage: hunt searches add <name> --board <gh-slug> [--role <r>]... [--skill <s>]... [--location <l>]...' };
+        return { exitCode: 1, output: SEARCHES_ADD_USAGE };
       }
-      const boards = collectFlag(rest, "--board");
-      if (boards.length === 0) {
-        return { exitCode: 1, output: "A search needs at least one --board (a Greenhouse board slug, e.g. --board stripe)" };
+      // Per-source flags (ADR-0015 ATS tier): --board defaults to Greenhouse
+      // (back-compat); --lever/--ashby name a board on those platforms. All
+      // repeatable and mixable within one search.
+      const sources = [
+        ...collectFlag(rest, "--board").map((board) => ({ adapterId: "greenhouse", board })),
+        ...collectFlag(rest, "--lever").map((board) => ({ adapterId: "lever", board })),
+        ...collectFlag(rest, "--ashby").map((board) => ({ adapterId: "ashby", board })),
+      ];
+      if (sources.length === 0) {
+        return {
+          exitCode: 1,
+          output: "A search needs at least one board: --board <greenhouse-slug>, --lever <slug>, or --ashby <slug>",
+        };
       }
       const result = container.savedSearches.add({
         name,
@@ -544,22 +563,22 @@ function runSearches(args: readonly string[], options: RunOptions): RunResult {
           skills: collectFlag(rest, "--skill"),
           locations: collectFlag(rest, "--location"),
         },
-        sources: boards.map((board) => ({ adapterId: "greenhouse", board })),
+        sources,
       });
       if (!result.ok) return { exitCode: 1, output: `Could not save search: ${result.message}` };
       const s = result.search;
       return {
         exitCode: 0,
-        output: `Saved search "${s.name}" (${s.id})\n  boards: ${s.sources.map((x) => x.board).join(", ")}\n  discover with: hunt discover ${s.id}`,
+        output: `Saved search "${s.name}" (${s.id})\n  boards: ${formatSources(s.sources)}\n  discover with: hunt discover ${s.id}`,
       };
     }
     if (sub === "list") {
       const searches = container.savedSearches.list();
-      if (searches.length === 0) return { exitCode: 0, output: "No saved searches. Add one: hunt searches add <name> --board <gh-slug>" };
+      if (searches.length === 0) return { exitCode: 0, output: "No saved searches. Add one: hunt searches add <name> --board <slug>" };
       return {
         exitCode: 0,
         output: searches
-          .map((s) => `${s.id}  ${s.name}  [boards: ${s.sources.map((x) => x.board).join(", ")}]`)
+          .map((s) => `${s.id}  ${s.name}  [boards: ${formatSources(s.sources)}]`)
           .join("\n"),
       };
     }

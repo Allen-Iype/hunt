@@ -118,6 +118,8 @@ intent — **with no profile and no AI needed** (ATS boards publish structured d
 # Save a standing search: which boards to watch + your intent.
 hunt searches add "senior backend, remote" \
   --board stripe --board figma \        # Greenhouse board slugs (repeatable)
+  --lever palantir \                    # Lever board slugs (repeatable)
+  --ashby Ramp \                        # Ashby board slugs (repeatable)
   --role "backend engineer" \           # role keywords (repeatable)
   --skill go --skill kubernetes \       # skills you want (repeatable)
   --location remote                     # locations (repeatable)
@@ -134,11 +136,19 @@ import it. Ranking uses your search intent; if you have a profile, it's used as 
 extra signal, but it's never required. Re-running a search won't resurface leads
 you've already imported.
 
-**What "boards" means:** Hunt's first discovery source is
-[Greenhouse](https://www.greenhouse.io/) — a `--board` value is the company's
-Greenhouse board slug (e.g. `stripe` for `boards.greenhouse.io/stripe`). More
-sources (Lever, Ashby, aggregator feeds) are coming. Hunt is **not** a job board:
-it fetches, on-demand, only what you asked for, into your local store.
+**What "boards" means:** Hunt discovers from three ATS platforms today, each
+addressed by the company's board slug on that platform (repeatable, and you can
+mix platforms in one search):
+
+| Flag | Platform | Slug example | Where to find it |
+|---|---|---|---|
+| `--board <slug>` | [Greenhouse](https://www.greenhouse.io/) | `stripe` | `boards.greenhouse.io/`**`stripe`** |
+| `--lever <slug>` | [Lever](https://www.lever.co/) | `palantir` | `jobs.lever.co/`**`palantir`** |
+| `--ashby <slug>` | [Ashby](https://www.ashbyhq.com/) | `Ramp` | `jobs.ashbyhq.com/`**`Ramp`** |
+
+Saved searches show their boards as `platform:slug` (e.g. `greenhouse:stripe`,
+`lever:palantir`). Aggregator feeds and more sources are coming. Hunt is **not** a
+job board: it fetches, on-demand, only what you asked for, into your local store.
 
 To act on a lead: `hunt discover --import <opp-id>` runs it through the normal
 import pipeline (so a prose-only posting may need an AI provider, exactly like
@@ -255,7 +265,7 @@ have it, or accept a document that doesn't claim it.
 | `hunt --version` | Print the version | — |
 | `hunt profile import <path>` | Import/update your profile from YAML | — |
 | `hunt profile show` | Summarize the imported profile | — |
-| `hunt searches add <name> --board <slug> [--role/--skill/--location ...]` | Save a standing job search | — |
+| `hunt searches add <name> [--board/--lever/--ashby <slug>]... [--role/--skill/--location ...]` | Save a standing job search (mix ATS platforms) | — |
 | `hunt searches list` | List saved searches | — |
 | `hunt searches remove <id>` | Delete a saved search | — |
 | `hunt discover <search-id>` | Find + rank openings from the search's boards | — |

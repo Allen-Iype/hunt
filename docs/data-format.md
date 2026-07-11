@@ -57,7 +57,9 @@ Tables:
 | `opportunity_refs` | Discovered **leads** (`hunt discover`) — a pointer to a posting (source, url, title, snippet, relevance), never the full job; `status` is `new`, `imported`, or `dismissed` |
 
 A row in `opportunity_refs` is a *lead*, not a job: it holds only what's needed to
-identify and rank a posting. Nothing there contains a normalized job (requirements,
+identify and rank a posting. Its `source_id` records which discovery adapter found
+it — `greenhouse`, `lever`, or `ashby` today (a `saved_searches` row lists its
+boards as `adapterId:board`). Nothing there contains a normalized job (requirements,
 compensation, description) — that's created only when you `hunt discover --import`
 a lead, which runs the normal import pipeline and writes a `jobs` row.
 

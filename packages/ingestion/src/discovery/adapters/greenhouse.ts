@@ -1,6 +1,7 @@
 import type { DiscoveredRef } from "@hunt/core";
 import { fetchJson } from "../../fetch.js";
 import type { DiscoveryAdapter } from "../types.js";
+import { htmlTeaser } from "./teaser.js";
 
 /**
  * Greenhouse discovery adapter (ADR-0015, ATS tier). Greenhouse publishes a
@@ -35,20 +36,6 @@ export type JsonFetcher = <T>(url: string) => Promise<T>;
 
 const GREENHOUSE_ADAPTER_VERSION = "0.1.0";
 
-/** A very short plain-text teaser from Greenhouse's HTML-escaped `content`. */
-function teaser(content: string | undefined): string | undefined {
-  if (!content) return undefined;
-  const text = content
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (text.length === 0) return undefined;
-  return text.length > 200 ? `${text.slice(0, 197)}…` : text;
-}
-
 export function createGreenhouseAdapter(deps: { fetchJson?: JsonFetcher } = {}): DiscoveryAdapter {
   const getJson = deps.fetchJson ?? (<T>(url: string) => fetchJson<T>(url));
   return {
@@ -61,7 +48,7 @@ export function createGreenhouseAdapter(deps: { fetchJson?: JsonFetcher } = {}):
       const refs: DiscoveredRef[] = [];
       for (const job of jobs) {
         if (!job.title || !job.absolute_url) continue; // a lead needs a title and a URL
-        const snippet = teaser(job.content);
+        const snippet = htmlTeaser(job.content);
         refs.push({
           sourceId: "greenhouse",
           url: job.absolute_url,

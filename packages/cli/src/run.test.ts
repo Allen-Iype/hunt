@@ -548,3 +548,47 @@ describe("hunt full V1 loop (import → analyze → resume → approve → track
     expect(show.output).toContain(`attached resume: ${docId}`);
   });
 });
+
+describe("hunt searches (integration: multi-source, no AI)", () => {
+  it("saves a search mixing Greenhouse, Lever, and Ashby boards", async () => {
+    const huntHome = tempHome();
+    const added = await run(
+      [
+        "searches", "add", "faang",
+        "--board", "stripe",
+        "--lever", "palantir",
+        "--ashby", "Ramp",
+        "--role", "backend engineer",
+        "--skill", "go",
+      ],
+      { huntHome },
+    );
+    expect(added.exitCode).toBe(0);
+    // Sources render qualified as adapterId:board so platforms are unambiguous.
+    expect(added.output).toContain("greenhouse:stripe");
+    expect(added.output).toContain("lever:palantir");
+    expect(added.output).toContain("ashby:Ramp");
+
+    const listed = await run(["searches", "list"], { huntHome });
+    expect(listed.output).toContain("faang");
+    expect(listed.output).toContain("greenhouse:stripe");
+    expect(listed.output).toContain("lever:palantir");
+    expect(listed.output).toContain("ashby:Ramp");
+  });
+
+  it("--board still defaults to Greenhouse (back-compat)", async () => {
+    const added = await run(["searches", "add", "gh-only", "--board", "stripe"], {
+      huntHome: tempHome(),
+    });
+    expect(added.exitCode).toBe(0);
+    expect(added.output).toContain("greenhouse:stripe");
+  });
+
+  it("requires at least one board", async () => {
+    const added = await run(["searches", "add", "empty", "--role", "engineer"], {
+      huntHome: tempHome(),
+    });
+    expect(added.exitCode).toBe(1);
+    expect(added.output).toContain("at least one board");
+  });
+});
