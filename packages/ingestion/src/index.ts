@@ -18,5 +18,8 @@ export { createHackerNewsAdapter } from "./discovery/adapters/hackernews.js";
 export { createAdzunaAdapter } from "./discovery/adapters/adzuna.js";
 export { createFindworkAdapter } from "./discovery/adapters/findwork.js";
 export { createJSearchAdapter } from "./discovery/adapters/jsearch.js";
+export { createLinkedInAdapter } from "./discovery/adapters/linkedin.js";
+export { createIndeedAdapter } from "./discovery/adapters/indeed.js";
+export { createGlassdoorAdapter } from "./discovery/adapters/glassdoor.js";
 export { buildDiscoveryRegistry, type DiscoveryCredentials } from "./discovery/registry.js";
 export type { DiscoveryAdapter } from "./discovery/types.js";

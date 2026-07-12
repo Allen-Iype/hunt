@@ -2,10 +2,13 @@ import { createAdzunaAdapter } from "./adapters/adzuna.js";
 import { createArbeitnowAdapter } from "./adapters/arbeitnow.js";
 import { createAshbyAdapter } from "./adapters/ashby.js";
 import { createFindworkAdapter } from "./adapters/findwork.js";
+import { createGlassdoorAdapter } from "./adapters/glassdoor.js";
 import { createGreenhouseAdapter } from "./adapters/greenhouse.js";
 import { createHackerNewsAdapter } from "./adapters/hackernews.js";
+import { createIndeedAdapter } from "./adapters/indeed.js";
 import { createJSearchAdapter } from "./adapters/jsearch.js";
 import { createLeverAdapter } from "./adapters/lever.js";
+import { createLinkedInAdapter } from "./adapters/linkedin.js";
 import { createRemoteOkAdapter } from "./adapters/remoteok.js";
 import { createUnconfiguredAdapter } from "./adapters/unconfigured.js";
 import { createWeWorkRemotelyAdapter } from "./adapters/weworkremotely.js";
@@ -37,7 +40,11 @@ export interface DiscoveryCredentials {
  * their `board` handle is by convention "global"; HN excepted: its board is the
  * thread item id). Phase B adds the Tier-3 aggregator APIs (Adzuna, Findwork,
  * JSearch) — official APIs with server-side search and INJECTED keys; a source
- * whose key is absent is registered as an unconfigured stub.
+ * whose key is absent is registered as an unconfigured stub. Phase D adds the
+ * Tier-4 best-effort web scrapers (LinkedIn, Indeed, Glassdoor) — public HTML
+ * only, honest fetching, no login/evasion (SDD §21), gated by @hunt/eval; they
+ * run only when a search names them and fail honestly to JSearch/paste when a
+ * site blocks the fetch.
  *
  * `overrides` (used by tests) fully replaces the default set and ignores
  * credentials.
@@ -55,6 +62,9 @@ export function buildDiscoveryRegistry(
     createWeWorkRemotelyAdapter(),
     createHackerNewsAdapter(),
     ...buildTier3Adapters(credentials),
+    createLinkedInAdapter(),
+    createIndeedAdapter(),
+    createGlassdoorAdapter(),
   ];
   return new Map(adapters.map((a) => [a.id, a]));
 }
