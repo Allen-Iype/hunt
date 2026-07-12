@@ -45,6 +45,8 @@ export type DiscoverJobsResult =
       /** Leads seen but skipped because already imported/handled. */
       skipped: number;
       usedProfile: boolean;
+      /** Non-fatal per-source failures (unconfigured key, blocked site, bad board). */
+      warnings?: string[];
     }
   | { ok: false; stage: "input" | "discover"; message: string; hint?: string };
 
@@ -94,7 +96,14 @@ export function createDiscoverJobs(deps: DiscoverJobsDeps) {
     }
 
     fresh.sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id));
-    return { ok: true, search, refs: fresh, skipped, usedProfile: profile !== null };
+    return {
+      ok: true,
+      search,
+      refs: fresh,
+      skipped,
+      usedProfile: profile !== null,
+      ...(result.warnings && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+    };
   };
 }
 

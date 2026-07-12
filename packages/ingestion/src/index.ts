@@ -21,5 +21,5 @@ export { createJSearchAdapter } from "./discovery/adapters/jsearch.js";
 export { createLinkedInAdapter } from "./discovery/adapters/linkedin.js";
 export { createIndeedAdapter } from "./discovery/adapters/indeed.js";
 export { createGlassdoorAdapter } from "./discovery/adapters/glassdoor.js";
-export { buildDiscoveryRegistry, type DiscoveryCredentials } from "./discovery/registry.js";
+export { buildDiscoveryRegistry, DISCOVERY_ADAPTER_IDS, type DiscoveryCredentials } from "./discovery/registry.js";
 export type { DiscoveryAdapter } from "./discovery/types.js";

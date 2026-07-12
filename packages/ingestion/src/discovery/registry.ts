@@ -69,6 +69,13 @@ export function buildDiscoveryRegistry(
   return new Map(adapters.map((a) => [a.id, a]));
 }
 
+/**
+ * The canonical discovery adapter ids, in tier order. Derived from the default
+ * registry so it stays in sync automatically — the CLI validates `--source
+ * <id>:<board>` against this so a typo'd id fails fast at search-add time.
+ */
+export const DISCOVERY_ADAPTER_IDS: readonly string[] = [...buildDiscoveryRegistry().keys()];
+
 /** Construct each Tier-3 adapter, or an unconfigured stub when its key is missing. */
 function buildTier3Adapters(creds: DiscoveryCredentials): DiscoveryAdapter[] {
   const adzuna =

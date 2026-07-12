@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ApplicationStatus, GeneratedDocument, IngestJobInput, ProfileDelta } from "@hunt/core";
 import type { TrackAction } from "@hunt/capabilities";
+import { DISCOVERY_ADAPTER_IDS } from "@hunt/ingestion";
 import { createContainer, resolveHuntHome } from "./container.js";
 import { readResumeText } from "./resume-reader.js";
 
@@ -55,9 +56,12 @@ Usage:
   hunt show <job-id|app-id>      Show a job: analysis, documents, and application timeline
   hunt backup [<dir>]            Snapshot ~/.hunt (database + vault + documents) to a directory
 
-  hunt searches add <name> [--board <gh-slug>]... [--lever <slug>]... [--ashby <slug>]... [--role <r>]... [--skill <s>]... [--location <l>]...
-                                 Save a standing search (which boards to watch + your intent).
-                                 Mix platforms: --board greenhouse-slug --lever lever-slug --ashby ashby-slug
+  hunt searches add <name> [--board <gh-slug>]... [--lever <slug>]... [--ashby <slug>]... [--source <id>:<board>]... [--role <r>]... [--skill <s>]... [--location <l>]...
+                                 Save a standing search (which sources to watch + your intent).
+                                 ATS: --board greenhouse-slug --lever lever-slug --ashby ashby-slug
+                                 Others via --source: feeds (remoteok:global, arbeitnow:global, weworkremotely:global,
+                                   hackernews:<thread-id>), aggregator APIs (adzuna:us, findwork:all, jsearch:global),
+                                   best-effort web (linkedin:Remote, indeed:Remote, glassdoor:Remote)
   hunt searches list             List saved searches
   hunt searches remove <id>      Delete a saved search
   hunt discover <search-id>      Find jobs from the search's boards, ranked to your intent
@@ -528,7 +532,34 @@ function collectFlag(args: readonly string[], flag: string): string[] {
 }
 
 const SEARCHES_ADD_USAGE =
-  "Usage: hunt searches add <name> [--board <greenhouse-slug>]... [--lever <slug>]... [--ashby <slug>]... [--role <r>]... [--skill <s>]... [--location <l>]...";
+  "Usage: hunt searches add <name> [--board <greenhouse-slug>]... [--lever <slug>]... [--ashby <slug>]...\n" +
+  `       [--source <id>:<board>]...   (id ∈ ${DISCOVERY_ADAPTER_IDS.join(", ")})\n` +
+  "       [--role <r>]... [--skill <s>]... [--location <l>]...";
+
+/**
+ * Parse `--source <id>:<board>` values into discovery sources (ADR-0015). This
+ * is the generic path to every non-ATS adapter (feeds, aggregator APIs, Tier-4
+ * scrapers); the older --board/--lever/--ashby flags stay for back-compat. The
+ * id is validated against the known adapters so a typo fails at add time, not
+ * silently at discover time. Feed/scraper boards are by convention "global";
+ * Hacker News's board is the thread item id.
+ */
+function parseSourceFlags(args: readonly string[]): { sources: { adapterId: string; board: string }[] } | { error: string } {
+  const sources: { adapterId: string; board: string }[] = [];
+  for (const raw of collectFlag(args, "--source")) {
+    const idx = raw.indexOf(":");
+    if (idx <= 0 || idx >= raw.length - 1) {
+      return { error: `--source expects <id>:<board> (e.g. remoteok:global), got "${raw}"` };
+    }
+    const adapterId = raw.slice(0, idx);
+    const board = raw.slice(idx + 1);
+    if (!DISCOVERY_ADAPTER_IDS.includes(adapterId)) {
+      return { error: `unknown discovery source "${adapterId}" — known: ${DISCOVERY_ADAPTER_IDS.join(", ")}` };
+    }
+    sources.push({ adapterId, board });
+  }
+  return { sources };
+}
 
 /** Render a search's sources as `adapterId:board`, so mixed-platform boards read unambiguously. */
 function formatSources(sources: readonly { adapterId: string; board: string }[]): string {
@@ -544,18 +575,23 @@ function runSearches(args: readonly string[], options: RunOptions): RunResult {
       if (!name || name.startsWith("-")) {
         return { exitCode: 1, output: SEARCHES_ADD_USAGE };
       }
-      // Per-source flags (ADR-0015 ATS tier): --board defaults to Greenhouse
-      // (back-compat); --lever/--ashby name a board on those platforms. All
-      // repeatable and mixable within one search.
+      // Per-source flags (ADR-0015): --board defaults to Greenhouse (back-compat);
+      // --lever/--ashby name a board on those platforms; --source <id>:<board> is
+      // the generic path to every other adapter (feeds, aggregator APIs, Tier-4
+      // scrapers). All repeatable and mixable within one search.
+      const parsed = parseSourceFlags(rest);
+      if ("error" in parsed) return { exitCode: 1, output: parsed.error };
       const sources = [
         ...collectFlag(rest, "--board").map((board) => ({ adapterId: "greenhouse", board })),
         ...collectFlag(rest, "--lever").map((board) => ({ adapterId: "lever", board })),
         ...collectFlag(rest, "--ashby").map((board) => ({ adapterId: "ashby", board })),
+        ...parsed.sources,
       ];
       if (sources.length === 0) {
         return {
           exitCode: 1,
-          output: "A search needs at least one board: --board <greenhouse-slug>, --lever <slug>, or --ashby <slug>",
+          output:
+            "A search needs at least one source: --board <greenhouse-slug>, --lever <slug>, --ashby <slug>, or --source <id>:<board>",
         };
       }
       const result = container.savedSearches.add({
@@ -638,21 +674,29 @@ function renderDiscovery(result: {
   refs: import("@hunt/core").OpportunityRef[];
   skipped: number;
   usedProfile: boolean;
+  warnings?: string[];
 }): string {
-  const { search, refs, skipped, usedProfile } = result;
+  const { search, refs, skipped, usedProfile, warnings } = result;
+  const lines: string[] = [];
   if (refs.length === 0) {
-    return `No new opportunities for "${search.name}"${skipped > 0 ? ` (${skipped} already seen)` : ""}.`;
-  }
-  const lines = [
-    `${refs.length} new opportunit${refs.length === 1 ? "y" : "ies"} for "${search.name}"` +
-      `${skipped > 0 ? `, ${skipped} already seen` : ""} — ranked to your intent${usedProfile ? " + profile" : ""}:`,
-  ];
-  for (const r of refs) {
-    const rel = `${Math.round(r.relevance * 100)}%`;
+    lines.push(`No new opportunities for "${search.name}"${skipped > 0 ? ` (${skipped} already seen)` : ""}.`);
+  } else {
     lines.push(
-      `  [${rel}] ${r.title}${r.companyName ? ` @ ${r.companyName}` : ""}${r.location ? ` · ${r.location}` : ""}`,
-      `        ${r.id} · import: hunt discover --import ${r.id}`,
+      `${refs.length} new opportunit${refs.length === 1 ? "y" : "ies"} for "${search.name}"` +
+        `${skipped > 0 ? `, ${skipped} already seen` : ""} — ranked to your intent${usedProfile ? " + profile" : ""}:`,
     );
+    for (const r of refs) {
+      const rel = `${Math.round(r.relevance * 100)}%`;
+      lines.push(
+        `  [${rel}] ${r.title}${r.companyName ? ` @ ${r.companyName}` : ""}${r.location ? ` · ${r.location}` : ""}`,
+        `        ${r.id} · import: hunt discover --import ${r.id}`,
+      );
+    }
+  }
+  // Graceful degradation: report per-source failures without sinking the run.
+  if (warnings && warnings.length > 0) {
+    lines.push(`⚠ ${warnings.length} source${warnings.length === 1 ? "" : "s"} skipped:`);
+    for (const w of warnings) lines.push(`  - ${w}`);
   }
   return lines.join("\n");
 }

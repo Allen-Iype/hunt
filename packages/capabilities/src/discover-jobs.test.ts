@@ -117,6 +117,35 @@ describe("DiscoverJobs", () => {
     expect(result.refs.map((r) => r.url)).toEqual(["https://x/sales"]);
   });
 
+  it("threads per-source warnings through on partial success (graceful degradation)", async () => {
+    const discover = createDiscoverJobs({
+      discovery: discoveryReturning({ ...twoLeads, warnings: ["adzuna/us: not configured — set HUNT_ADZUNA_APP_KEY"] }),
+      savedSearches: fakeSearches(SEARCH),
+      opportunityRefs: fakeRefs(),
+      jobs: fakeJobs(),
+      profiles: fakeProfiles(null),
+      clock: () => NOW,
+    });
+    const result = await discover("search_1");
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.warnings).toEqual(["adzuna/us: not configured — set HUNT_ADZUNA_APP_KEY"]);
+    expect(result.refs).toHaveLength(2); // healthy sources still returned
+  });
+
+  it("omits warnings when discovery reports none", async () => {
+    const discover = createDiscoverJobs({
+      discovery: discoveryReturning(twoLeads),
+      savedSearches: fakeSearches(SEARCH),
+      opportunityRefs: fakeRefs(),
+      jobs: fakeJobs(),
+      profiles: fakeProfiles(null),
+      clock: () => NOW,
+    });
+    const result = await discover("search_1");
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.warnings).toBeUndefined();
+  });
+
   it("fails cleanly for an unknown search", async () => {
     const discover = createDiscoverJobs({
       discovery: discoveryReturning(twoLeads),

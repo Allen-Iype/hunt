@@ -49,7 +49,9 @@ export function createDiscoverer(
           ...(hint ? { hint } : {}),
         };
       }
-      return { ok: true, refs: [...byUrl.values()] };
+      // Partial success → carry the per-source failures as warnings so the
+      // surface can say "found X from N-of-M sources" (graceful degradation).
+      return { ok: true, refs: [...byUrl.values()], ...(errors.length > 0 ? { warnings: errors } : {}) };
     },
   };
 }

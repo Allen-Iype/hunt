@@ -60,5 +60,18 @@ describe("createDiscoverer", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.refs).toHaveLength(1);
+    // The failed source is surfaced as a non-fatal warning (graceful degradation).
+    expect(result.warnings).toEqual(["lever/gone: HTTP 404"]);
+  });
+
+  it("omits warnings entirely when every source succeeds", async () => {
+    const discoverer = createDiscoverer([adapter("greenhouse", [lead("https://x/1")])]);
+    const result = await discoverer.discover({
+      sources: [{ adapterId: "greenhouse", board: "acme" }],
+      query,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.warnings).toBeUndefined();
   });
 });

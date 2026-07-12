@@ -266,7 +266,17 @@ export interface DiscoveryPort {
 }
 
 export type DiscoveryResult =
-  | { ok: true; refs: DiscoveredRef[] }
+  | {
+      ok: true;
+      refs: DiscoveredRef[];
+      /**
+       * Non-fatal per-source failures on an otherwise-successful run (ADR-0015
+       * graceful degradation): a Tier-3 source with no API key, a Tier-4 site
+       * that blocked the fetch, a bad board handle. Discovery still returns the
+       * leads it did collect; the surface reports these as "N sources skipped".
+       */
+      warnings?: string[];
+    }
   | { ok: false; stage: "fetch" | "parse"; message: string; hint?: string };
 
 /**

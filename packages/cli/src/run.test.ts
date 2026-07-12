@@ -706,11 +706,67 @@ describe("hunt searches (integration: multi-source, no AI)", () => {
     expect(added.output).toContain("greenhouse:stripe");
   });
 
-  it("requires at least one board", async () => {
+  it("requires at least one source", async () => {
     const added = await run(["searches", "add", "empty", "--role", "engineer"], {
       huntHome: tempHome(),
     });
     expect(added.exitCode).toBe(1);
-    expect(added.output).toContain("at least one board");
+    expect(added.output).toContain("at least one source");
+  });
+
+  it("adds non-ATS adapters via the generic --source <id>:<board> flag", async () => {
+    const huntHome = tempHome();
+    const added = await run(
+      [
+        "searches", "add", "wide",
+        "--source", "remoteok:global",
+        "--source", "jsearch:global",
+        "--source", "linkedin:Remote",
+        "--role", "backend engineer",
+      ],
+      { huntHome },
+    );
+    expect(added.exitCode).toBe(0);
+    expect(added.output).toContain("remoteok:global");
+    expect(added.output).toContain("jsearch:global");
+    expect(added.output).toContain("linkedin:Remote");
+  });
+
+  it("rejects an unknown --source adapter id at add time (typo fails fast)", async () => {
+    const added = await run(
+      ["searches", "add", "typo", "--source", "linkdin:global"],
+      { huntHome: tempHome() },
+    );
+    expect(added.exitCode).toBe(1);
+    expect(added.output).toContain('unknown discovery source "linkdin"');
+  });
+
+  it("rejects a malformed --source value missing the board", async () => {
+    const added = await run(
+      ["searches", "add", "bad", "--source", "remoteok"],
+      { huntHome: tempHome() },
+    );
+    expect(added.exitCode).toBe(1);
+    expect(added.output).toContain("--source expects <id>:<board>");
+  });
+
+  it("discover on an unconfigured-only search fails with an actionable key hint (offline, no key)", async () => {
+    const huntHome = tempHome();
+    // Guarantee no Adzuna key is present so the source stays an unconfigured stub.
+    const saved = { ...process.env.HUNT_ADZUNA_APP_ID, ...process.env.HUNT_ADZUNA_APP_KEY };
+    delete process.env.HUNT_ADZUNA_APP_ID;
+    delete process.env.HUNT_ADZUNA_APP_KEY;
+    cleanups.push(() => {
+      if (saved) Object.assign(process.env, saved);
+    });
+    const added = await run(["searches", "add", "keyless", "--source", "adzuna:us"], { huntHome });
+    expect(added.exitCode).toBe(0);
+    const searchId = added.output.match(/\((search_[a-z0-9]+)\)/)?.[1];
+    expect(searchId).toBeTruthy();
+
+    const discovered = await run(["discover", searchId!], { huntHome });
+    // All sources failed (only an unconfigured stub) → clean failure, not a crash.
+    expect(discovered.exitCode).toBe(1);
+    expect(discovered.output).toContain("HUNT_ADZUNA_APP_ID");
   });
 });
