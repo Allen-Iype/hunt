@@ -81,6 +81,16 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
 
+  packages/eval:
+    dependencies:
+      '@hunt/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@hunt/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+
   packages/ingestion:
     dependencies:
       '@hunt/core':

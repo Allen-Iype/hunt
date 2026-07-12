@@ -66,6 +66,9 @@ HUNT_HOME=/tmp/hunt-eval node packages/cli/dist/index.js <args>
 | `HUNT_AI_MODEL` | Model override (defaults: `claude-sonnet-5` / `llama3.2`) |
 | `HUNT_OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
 | `HUNT_OLLAMA_TIMEOUT_MS` | Ollama request timeout (default 120000); **raise it for large local models** |
+| `HUNT_ADZUNA_APP_ID` / `HUNT_ADZUNA_APP_KEY` | Tier-3 discovery: Adzuna (needs both; source skips gracefully if unset) |
+| `HUNT_FINDWORK_API_KEY` | Tier-3 discovery: Findwork (skips gracefully if unset) |
+| `HUNT_JSEARCH_API_KEY` | Tier-3 discovery: JSearch/RapidAPI (skips gracefully if unset) |
 | `HUNT_HOME` | Data dir (default `~/.hunt`) — set to a temp dir for tests |
 | `HUNT_ENV_FILE` | Override the `.env` file path |
 
@@ -84,6 +87,7 @@ worked manual-generation test.
 | `@hunt/ai` | AI gateway + raw-HTTP providers + tasks | `core`, `zod` |
 | `@hunt/ingestion` | Source adapters, envelope pipeline, tiered normalization | `core`, `node-html-parser` |
 | `@hunt/render` | Document → HTML behind `RenderPort` | `core` |
+| `@hunt/eval` | Discovery-extraction eval harness — scores adapter output vs. golden snapshots, gates Tier-4 scrapers (dev/test tool, not runtime-wired) | `core` (ingestion as devDep for golden cases) |
 | `@hunt/cli` | Presentation + composition root (wires everything) | everything |
 
 ## Where things stand & what's next

@@ -1,0 +1,20 @@
+{
+  "name": "@hunt/eval",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hunt eval harness: score discovery-adapter extraction against golden snapshots and gate brittle (Tier-4) scrapers (ADR-0015).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hunt/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@hunt/ingestion": "workspace:*"
+  }
+}
