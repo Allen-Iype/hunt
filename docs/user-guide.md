@@ -148,16 +148,19 @@ image-only PDF has no extractable text — export or paste a text version instea
 
 ### Discover
 
-Discovery is the "help me find jobs" entry point. You tell Hunt which boards to
-watch and what you're looking for; it fetches the openings and ranks them to your
-intent — **with no profile and no AI needed** (ATS boards publish structured data).
+Discovery is the "help me find jobs" entry point. You tell Hunt which sources to
+watch and what you're looking for; it fetches the openings across all of them in
+parallel and ranks them to your intent — **with no profile and no AI needed**. One
+slow or failing source never sinks the run: you get the leads that came back, plus
+a note on any source that was skipped ([sources](#sources) below).
 
 ```sh
-# Save a standing search: which boards to watch + your intent.
+# Save a standing search: which sources to watch + your intent.
 hunt searches add "senior backend, remote" \
   --board stripe --board figma \        # Greenhouse board slugs (repeatable)
   --lever palantir \                    # Lever board slugs (repeatable)
   --ashby Ramp \                        # Ashby board slugs (repeatable)
+  --source remoteok:global \            # any other source: --source <id>:<board>
   --role "backend engineer" \           # role keywords (repeatable)
   --skill go --skill kubernetes \       # skills you want (repeatable)
   --location remote                     # locations (repeatable)
@@ -174,23 +177,119 @@ import it. Ranking uses your search intent; if you have a profile, it's used as 
 extra signal, but it's never required. Re-running a search won't resurface leads
 you've already imported.
 
-**What "boards" means:** Hunt discovers from three ATS platforms today, each
-addressed by the company's board slug on that platform (repeatable, and you can
-mix platforms in one search):
+#### Sources
 
-| Flag | Platform | Slug example | Where to find it |
+Hunt discovers from **13 sources across four tiers**. Each source is a
+`<id>:<board>` pair. The three ATS platforms have their own shorthand flags for
+back-compat; everything else is added with the generic **`--source <id>:<board>`**
+flag (repeatable, and you can mix any sources in one search):
+
+**Tier 1 — ATS boards** (structured, no key, addressed by a company's board slug):
+
+| Add with | Source id | Board example | Where to find the slug |
 |---|---|---|---|
-| `--board <slug>` | [Greenhouse](https://www.greenhouse.io/) | `stripe` | `boards.greenhouse.io/`**`stripe`** |
-| `--lever <slug>` | [Lever](https://www.lever.co/) | `palantir` | `jobs.lever.co/`**`palantir`** |
-| `--ashby <slug>` | [Ashby](https://www.ashbyhq.com/) | `Ramp` | `jobs.ashbyhq.com/`**`Ramp`** |
+| `--board <slug>` or `--source greenhouse:<slug>` | `greenhouse` | `stripe` | `boards.greenhouse.io/`**`stripe`** |
+| `--lever <slug>` or `--source lever:<slug>` | `lever` | `palantir` | `jobs.lever.co/`**`palantir`** |
+| `--ashby <slug>` or `--source ashby:<slug>` | `ashby` | `Ramp` | `jobs.ashbyhq.com/`**`Ramp`** |
 
-Saved searches show their boards as `platform:slug` (e.g. `greenhouse:stripe`,
-`lever:palantir`). Aggregator feeds and more sources are coming. Hunt is **not** a
-job board: it fetches, on-demand, only what you asked for, into your local store.
+**Tier 2 — aggregator feeds** (broad reach, no key; one global feed each, so the
+board is `global` — except Hacker News, whose board is the monthly thread id):
+
+| Add with | What it covers |
+|---|---|
+| `--source remoteok:global` | RemoteOK — thousands of remote roles |
+| `--source arbeitnow:global` | Arbeitnow — European + remote |
+| `--source weworkremotely:global` | We Work Remotely |
+| `--source hackernews:<thread-id>` | HN "Who is hiring?" — the item id of that month's thread (from its `news.ycombinator.com/item?id=` URL) |
+
+**Tier 3 — aggregator APIs** (widest reach; each needs a free API key — see
+[API keys](#discovery-api-keys); a source with no key is **skipped with a clear
+warning**, never a crash):
+
+| Add with | What it covers | Board |
+|---|---|---|
+| `--source adzuna:<country>` | Adzuna — indexes Indeed, Monster, etc. | country code: `us`, `gb`, `de`, … |
+| `--source findwork:<mode>` | Findwork — developer-focused | `all` or `remote` |
+| `--source jsearch:global` | JSearch (RapidAPI) — **aggregates LinkedIn, Indeed, Glassdoor** through an official API | `global` |
+
+**Tier 4 — best-effort web** (public listings only; **brittle** — see
+[Web-tier limits](#web-tier-limits)):
+
+| Add with | Board example |
+|---|---|
+| `--source linkedin:<location>` | `Remote`, `United States` |
+| `--source indeed:<location>` | `Remote` |
+| `--source glassdoor:<location>` | `Remote` |
+
+Saved searches show their sources as `id:board` (e.g. `greenhouse:stripe`,
+`remoteok:global`). A typo'd source id is rejected when you add the search, with
+the list of valid ids. Hunt is **not** a job board: it fetches, on-demand, only
+what you asked for, into your local store.
+
+<a id="discovery-api-keys"></a>
+#### API keys (Tier 3)
+
+Tier-3 sources need a free API key, set as an environment variable (like AI
+config — never stored in Hunt's database or logs). A source whose key is unset is
+simply **skipped**; the run continues and tells you which key to set:
+
+```sh
+export HUNT_ADZUNA_APP_ID=...      # + HUNT_ADZUNA_APP_KEY   → https://developer.adzuna.com/
+export HUNT_ADZUNA_APP_KEY=...
+export HUNT_FINDWORK_API_KEY=...   #                         → https://findwork.dev/developers/
+export HUNT_JSEARCH_API_KEY=...    # RapidAPI key             → https://rapidapi.com/ (search "JSearch")
+```
+
+```
+$ hunt discover <search-id>
+… 42 new opportunities …
+⚠ 1 source skipped:
+  - jsearch/global: "jsearch" is not configured — set HUNT_JSEARCH_API_KEY to enable this source
+```
+
+<a id="web-tier-limits"></a>
+#### Web-tier limits (Tier 4) — read this before using LinkedIn/Indeed/Glassdoor
+
+The web tier is **best-effort and honest by design**. Hunt fetches only public,
+un-authenticated listing pages with an identified user-agent — it will **never**
+log into your account, spoof a browser, or try to evade a site's bot defenses
+(that line protects your accounts). In practice LinkedIn, Indeed, and Glassdoor
+usually serve a login or challenge wall to automated requests, so these sources
+**often fail on purpose** — you'll see a clear message, not missing jobs:
+
+```
+⚠ 1 source skipped:
+  - linkedin/Remote: LinkedIn served a login/challenge wall
+    (use the JSearch source (official API) or paste the posting: hunt import -)
+```
+
+**The reliable way to reach LinkedIn/Indeed/Glassdoor listings is the JSearch
+source (Tier 3)** — it aggregates all three through an official API, no account
+risk. For any single posting a web source can't reach, the paste path always
+works: `hunt import -`.
 
 To act on a lead: `hunt discover --import <opp-id>` runs it through the normal
 import pipeline (so a prose-only posting may need an AI provider, exactly like
 `hunt import`), then you `analyze`, `resume`, `letter`, and `track` as usual.
+
+#### Example searches by reach
+
+```sh
+# Zero-setup, no keys: ATS boards + free feeds
+hunt searches add "remote backend" \
+  --board stripe --lever palantir \
+  --source remoteok:global --source arbeitnow:global --source weworkremotely:global \
+  --role "backend engineer" --skill go --skill kubernetes --location remote
+
+# Widest reach: add the aggregator APIs (needs the Tier-3 keys above)
+hunt searches add "backend everywhere" \
+  --source remoteok:global \
+  --source adzuna:us --source findwork:remote --source jsearch:global \
+  --role "backend engineer" --skill typescript
+
+# This month's HN "Who is hiring?" (grab the thread's item id from its URL)
+hunt searches add "hn hiring" --source hackernews:12345678 --role "senior engineer"
+```
 
 ### Import
 
@@ -304,10 +403,10 @@ have it, or accept a document that doesn't claim it.
 | `hunt profile from-resume <path> [-o <out>]` | Seed a reviewable profile.yaml from a resume (text/paste) | required |
 | `hunt profile import <path> [--allow-removals]` | Import/update your profile from YAML (reports changes; blocks silent deletions) | — |
 | `hunt profile show` | Summarize the imported profile | — |
-| `hunt searches add <name> [--board/--lever/--ashby <slug>]... [--role/--skill/--location ...]` | Save a standing job search (mix ATS platforms) | — |
+| `hunt searches add <name> [--board/--lever/--ashby <slug>]... [--source <id>:<board>]... [--role/--skill/--location ...]` | Save a standing job search (mix any [sources](#sources)) | — |
 | `hunt searches list` | List saved searches | — |
 | `hunt searches remove <id>` | Delete a saved search | — |
-| `hunt discover <search-id>` | Find + rank openings from the search's boards | — |
+| `hunt discover <search-id>` | Find + rank openings across the search's sources | — |
 | `hunt discover --import <opp-id>` | Import a discovered lead into a job | if unstructured |
 | `hunt import <url>` | Import a job from a URL | if unstructured |
 | `hunt import --file <path>` | Import a job from a saved file | if unstructured |
