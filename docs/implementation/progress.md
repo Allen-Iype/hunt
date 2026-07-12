@@ -87,7 +87,7 @@ Post-V1 order of attack (SDD §27):
 - Next designed candidates: **eval harness** (record/replay fixtures + behavioral eval for the AI tasks — unblocks the deferred web-discovery tier), then **analytics + FTS**.
 - Then: browser extension, web UI, interview prep + company research, MCP server, discovery agent.
 
-**Discovery follow-ups:** ~~Lever and Ashby discovery adapters~~ **done (M9)** — the ATS tier now spans Greenhouse, Lever, and Ashby. Next in discovery: Phase 2 aggregator feeds, then a convenience `hunt discover --all` (run all saved searches at once — a CLI-only add, architecture already supports it). The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
+**Discovery follow-ups:** ~~Lever and Ashby discovery adapters~~ **done (M9)** — the ATS tier now spans Greenhouse, Lever, and Ashby. Next in discovery: Phase 2 **aggregator feeds** (for breadth beyond named boards — candidate sources researched and terms verified in [docs/research/aggregator-discovery-sources.md](../research/aggregator-discovery-sources.md); not yet planned), then a convenience `hunt discover --all` (run all saved searches at once — a CLI-only add, architecture already supports it). The best-effort web/LinkedIn tier stays deferred behind the eval harness (Phase 3, ADR-0015).
 
 **Standing maintainer actions:** items 1–2 above.
 
