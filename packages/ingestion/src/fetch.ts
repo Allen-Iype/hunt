@@ -35,6 +35,32 @@ export async function fetchPage(url: string, timeoutMs = 20_000): Promise<string
 }
 
 /**
+ * Honest text fetch for discovery adapters hitting public RSS/XML feeds
+ * (ADR-0015, Tier-2). Same identified user-agent; XML accept header; typed
+ * error on transport failure. Returns the raw feed body for the adapter to
+ * parse.
+ */
+export async function fetchText(url: string, timeoutMs = 20_000): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { "user-agent": HUNT_USER_AGENT, accept: "application/rss+xml, application/xml, text/xml" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new FetchError(
+      `could not fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+      "check the feed URL and your network",
+    );
+  }
+  if (!response.ok) {
+    throw new FetchError(`${url} responded with HTTP ${response.status}`, "the feed may have moved");
+  }
+  return response.text();
+}
+
+/**
  * Honest JSON fetch for discovery adapters hitting public board APIs
  * (ADR-0015). Same identified user-agent; JSON accept header; typed error on
  * transport or parse failure.
