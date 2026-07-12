@@ -16,7 +16,7 @@ import {
   createTrackApplication,
 } from "@hunt/capabilities";
 import { DEFAULT_PROFILE_ID } from "@hunt/core";
-import { createDiscoverer, createJobIngestor } from "@hunt/ingestion";
+import { createDiscoverer, createJobIngestor, type DiscoveryCredentials } from "@hunt/ingestion";
 import { createHtmlRenderer } from "@hunt/render";
 import { openStorage, type HuntStorage } from "@hunt/storage";
 import { buildAiSetup } from "./ai-config.js";
@@ -30,6 +30,28 @@ export function resolveHuntHome(env: NodeJS.ProcessEnv = process.env): string {
   return env.HUNT_HOME && env.HUNT_HOME.length > 0
     ? env.HUNT_HOME
     : join(homedir(), ".hunt");
+}
+
+/**
+ * Resolve Tier-3 discovery API keys from the environment (decisions log #10:
+ * config via env until it outgrows this). This is the one place these keys are
+ * read; the ingestion package never touches `process.env`. A missing key is not
+ * an error — the registry registers that source as an unconfigured stub, so a
+ * search referencing it warns clearly instead of crashing.
+ *
+ *   HUNT_ADZUNA_APP_ID / HUNT_ADZUNA_APP_KEY   Adzuna (needs both)
+ *   HUNT_FINDWORK_API_KEY                       Findwork
+ *   HUNT_JSEARCH_API_KEY                        JSearch (RapidAPI)
+ */
+export function resolveDiscoveryCredentials(
+  env: NodeJS.ProcessEnv = process.env,
+): DiscoveryCredentials {
+  return {
+    ...(env.HUNT_ADZUNA_APP_ID ? { adzunaAppId: env.HUNT_ADZUNA_APP_ID } : {}),
+    ...(env.HUNT_ADZUNA_APP_KEY ? { adzunaAppKey: env.HUNT_ADZUNA_APP_KEY } : {}),
+    ...(env.HUNT_FINDWORK_API_KEY ? { findworkApiKey: env.HUNT_FINDWORK_API_KEY } : {}),
+    ...(env.HUNT_JSEARCH_API_KEY ? { jsearchApiKey: env.HUNT_JSEARCH_API_KEY } : {}),
+  };
 }
 
 export interface Container {
@@ -63,7 +85,7 @@ export function createContainer(
     envelopes: storage.envelopes,
     extractJob: ai.extractor,
   });
-  const discoverer = createDiscoverer();
+  const discoverer = createDiscoverer(undefined, resolveDiscoveryCredentials(env));
   const importJob = createImportJob({ ingestor, jobs: storage.jobs, companies: storage.companies });
   return {
     storage,

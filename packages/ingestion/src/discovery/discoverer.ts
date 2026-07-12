@@ -1,5 +1,5 @@
 import type { DiscoveredRef, DiscoveryPort, DiscoveryResult } from "@hunt/core";
-import { buildDiscoveryRegistry } from "./registry.js";
+import { buildDiscoveryRegistry, type DiscoveryCredentials } from "./registry.js";
 import type { DiscoveryAdapter } from "./types.js";
 
 /**
@@ -7,11 +7,17 @@ import type { DiscoveryAdapter } from "./types.js";
  * collect leads, dedup by URL. Adapter/transport failures for one source are
  * surfaced as a typed `fetch`/`parse` result — one bad board should not sink a
  * whole search, but the caller is told which failed.
+ *
+ * `credentials` (Tier-3 API keys, resolved from env at the CLI composition root)
+ * are passed to the registry; a source whose key is absent still registers, as
+ * an unconfigured stub that yields a clear "set the key" warning. Tests pass
+ * `overrides` to supply their own adapter set (credentials then ignored).
  */
 export function createDiscoverer(
   overrides?: readonly DiscoveryAdapter[],
+  credentials?: DiscoveryCredentials,
 ): DiscoveryPort {
-  const registry = buildDiscoveryRegistry(overrides);
+  const registry = buildDiscoveryRegistry(overrides, credentials);
   return {
     async discover({ sources, query }): Promise<DiscoveryResult> {
       const byUrl = new Map<string, DiscoveredRef>();

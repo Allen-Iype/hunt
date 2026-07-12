@@ -60,16 +60,24 @@ export async function fetchText(url: string, timeoutMs = 20_000): Promise<string
   return response.text();
 }
 
+export interface FetchJsonOptions {
+  timeoutMs?: number;
+  /** Extra request headers, e.g. an `authorization` token for Tier-3 aggregator APIs. */
+  headers?: Record<string, string>;
+}
+
 /**
  * Honest JSON fetch for discovery adapters hitting public board APIs
  * (ADR-0015). Same identified user-agent; JSON accept header; typed error on
- * transport or parse failure.
+ * transport or parse failure. Optional `headers` carry per-adapter auth (Tier-3
+ * APIs) without leaking the key into the URL or logs.
  */
-export async function fetchJson<T = unknown>(url: string, timeoutMs = 20_000): Promise<T> {
+export async function fetchJson<T = unknown>(url: string, options: FetchJsonOptions = {}): Promise<T> {
+  const { timeoutMs = 20_000, headers } = options;
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { "user-agent": HUNT_USER_AGENT, accept: "application/json" },
+      headers: { "user-agent": HUNT_USER_AGENT, accept: "application/json", ...headers },
       redirect: "follow",
       signal: AbortSignal.timeout(timeoutMs),
     });
