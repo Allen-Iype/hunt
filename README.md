@@ -14,6 +14,19 @@ Hunt helps software engineers run their entire job search — **finding** releva
 4. **Deterministic core** — AI is used only where reasoning over language genuinely helps. Everything else is ordinary, testable software.
 5. **Grounded generation** — resumes can only be built from your verified profile facts; every bullet cites its sources and is verified deterministically.
 
+
+ ## How this is built
+
+  Hunt is developed by directing AI coding agents (Claude Code) under an explicit
+  engineering contract I define and enforce: a milestone workflow with mandatory
+  stop-points, an ESLint-enforced dependency architecture (`packages/core` does no
+  I/O and imports nothing), a regression-test-per-bugfix policy, and a no-AI test
+  suite that must stay green offline. The agent writes much of the code; the
+  architecture, constraints, review, and every accepted decision are mine.
+  `CLAUDE.md` and `docs/engineering-contract.md` are the actual working rules,
+  kept in the repo deliberately — they're part of the method, not boilerplate.
+  
+
 ## Repository layout
 
 ```
