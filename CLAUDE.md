@@ -17,8 +17,7 @@ all V1 milestones (M0–M5) complete.
 
 - **Never run state-changing git commands** (commit, push, merge, rebase, reset,
   stash, tag, add). Read-only git (status/diff/log) is fine. At a milestone's end,
-  only *suggest* a clean conventional commit message — **no AI attribution** of any
-  kind (no "Co-authored-by", no "Generated with").
+  only *suggest* a clean conventional commit message.
 - **Follow the milestone workflow exactly:** explain → plan → implement → test →
   validate → document → **STOP for approval**. Never start the next milestone
   automatically; never work outside the current milestone's scope.
